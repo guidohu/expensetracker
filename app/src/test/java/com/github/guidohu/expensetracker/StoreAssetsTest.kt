@@ -16,6 +16,9 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
+import com.github.guidohu.expensetracker.data.AppContainer
+import com.github.guidohu.expensetracker.data.ExchangeRateService
+import com.github.guidohu.expensetracker.data.UserPreferences
 import com.github.guidohu.expensetracker.ui.categories.CategoriesScreen
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheetContent
 import com.github.guidohu.expensetracker.ui.expenses.ExpensesScreen
@@ -28,6 +31,8 @@ import java.time.LocalDate
 /**
  * Renders Play Store listing assets (icon, phone screenshots) at real resolutions without
  * transparency, separate from [ScreenshotTest]'s small renders used for day-to-day UI verification.
+ * See the known-limitation note on [ScreenshotTest] — currently fails against compileSdk 36.
+ * The assets already produced in play-store-assets/ remain valid; rerun once Paparazzi catches up.
  */
 class StoreAssetsTest {
 
@@ -41,6 +46,12 @@ class StoreAssetsTest {
             density = Density.XXHIGH,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
+    )
+
+    private fun container() = AppContainer(
+        repository = repositoryOf(sampleCategories, sampleExpenses),
+        userPreferences = UserPreferences(paparazzi.context),
+        exchangeRateService = ExchangeRateService(),
     )
 
     private fun screenshot(content: @androidx.compose.runtime.Composable () -> Unit) {
@@ -61,17 +72,17 @@ class StoreAssetsTest {
 
     @Test
     fun shot_expenses() = screenshot {
-        ExpensesScreen(repositoryOf(sampleCategories, sampleExpenses))
+        ExpensesScreen(container())
     }
 
     @Test
     fun shot_stats() = screenshot {
-        StatsScreen(repositoryOf(sampleCategories, sampleExpenses))
+        StatsScreen(container())
     }
 
     @Test
     fun shot_categories() = screenshot {
-        CategoriesScreen(repositoryOf(sampleCategories, sampleExpenses))
+        CategoriesScreen(container())
     }
 
     @Test
@@ -79,14 +90,19 @@ class StoreAssetsTest {
         AddExpenseSheetContent(
             amountText = "24.50",
             onAmountChange = {},
+            currencyCode = "USD",
+            onCurrencyClick = {},
+            title = "Lunch with Sam",
+            onTitleChange = {},
             categories = sampleCategories,
             selectedCategoryId = food.id,
             onCategorySelect = {},
-            note = "Lunch with Sam",
-            onNoteChange = {},
+            notes = "",
+            onNotesChange = {},
             selectedDate = LocalDate.now().toEpochDay(),
             onDateClick = {},
             isValid = true,
+            isSaving = false,
             onSave = {},
         )
     }

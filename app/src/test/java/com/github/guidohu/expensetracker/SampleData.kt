@@ -13,11 +13,14 @@ val bills = Category(4, "Bills", 0xFF5C6BC0.toInt())
 val entertainment = Category(5, "Entertainment", 0xFFEC407A.toInt())
 val sampleCategories = listOf(food, transport, shopping, bills, entertainment)
 
-private fun expense(id: Long, category: Category, amount: Double, note: String, daysAgo: Long): ExpenseWithCategory =
+private fun expense(id: Long, category: Category, amount: Double, title: String, daysAgo: Long, notes: String = ""): ExpenseWithCategory =
     ExpenseWithCategory(
         id = id,
         amount = amount,
-        note = note,
+        currencyCode = "USD",
+        exchangeRate = 1.0,
+        title = title,
+        notes = notes,
         date = LocalDate.now().minusDays(daysAgo).toEpochDay(),
         categoryId = category.id,
         categoryName = category.name,
@@ -28,7 +31,10 @@ private fun monthExpense(id: Long, category: Category, amount: Double, monthsAgo
     ExpenseWithCategory(
         id = id,
         amount = amount,
-        note = "",
+        currencyCode = "USD",
+        exchangeRate = 1.0,
+        title = category.name,
+        notes = "",
         date = LocalDate.now().minusMonths(monthsAgo).withDayOfMonth(10).toEpochDay(),
         categoryId = category.id,
         categoryName = category.name,
@@ -38,7 +44,7 @@ private fun monthExpense(id: Long, category: Category, amount: Double, monthsAgo
 val sampleExpenses = listOf(
     expense(1, food, 12.50, "Lunch", 0),
     expense(2, transport, 4.20, "Bus ticket", 0),
-    expense(3, food, 38.90, "Groceries", 1),
+    expense(3, food, 38.90, "Groceries", 1, notes = "Weekly shop"),
     expense(4, entertainment, 15.00, "Movie", 1),
     expense(5, shopping, 64.00, "New shoes", 3),
     expense(6, bills, 89.00, "Phone bill", 5),

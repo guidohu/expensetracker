@@ -26,20 +26,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.CategoryColorPalette
 import com.github.guidohu.expensetracker.data.toComposeColor
 
+/** Add/edit dialog for a category — [existing] null means "add new", non-null means "edit". */
 @Composable
-fun AddCategoryDialog(
+fun CategoryDialog(
+    existing: Category?,
     onDismiss: () -> Unit,
     onConfirm: (name: String, color: Int) -> Unit,
 ) {
-    var name by rememberSaveable { mutableStateOf("") }
-    var selectedColor by rememberSaveable { mutableStateOf(CategoryColorPalette.first()) }
+    var name by rememberSaveable { mutableStateOf(existing?.name ?: "") }
+    var selectedColor by rememberSaveable { mutableStateOf(existing?.color ?: CategoryColorPalette.first()) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("New category") },
+        title = { Text(if (existing == null) "New category" else "Edit category") },
         text = {
             Column {
                 OutlinedTextField(
@@ -80,7 +83,7 @@ fun AddCategoryDialog(
         confirmButton = {
             TextButton(
                 onClick = { if (name.isNotBlank()) onConfirm(name, selectedColor) },
-            ) { Text("Add") }
+            ) { Text(if (existing == null) "Add" else "Save") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

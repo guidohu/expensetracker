@@ -12,14 +12,43 @@ class ExpenseRepository(
     suspend fun addCategory(name: String, color: Int): Long =
         categoryDao.insert(Category(name = name, color = color))
 
+    suspend fun updateCategory(category: Category, name: String, color: Int) =
+        categoryDao.update(category.copy(name = name, color = color))
+
     suspend fun deleteCategory(category: Category) = categoryDao.delete(category)
 
     suspend fun expenseCountFor(categoryId: Long): Int = categoryDao.expenseCountFor(categoryId)
 
-    suspend fun addExpense(amount: Double, categoryId: Long, note: String, date: Long): Long =
-        expenseDao.insert(Expense(amount = amount, categoryId = categoryId, note = note, date = date))
+    suspend fun addExpense(
+        amount: Double,
+        currencyCode: String,
+        exchangeRate: Double,
+        categoryId: Long,
+        title: String,
+        notes: String,
+        date: Long,
+    ): Long = expenseDao.insert(
+        Expense(
+            amount = amount,
+            currencyCode = currencyCode,
+            exchangeRate = exchangeRate,
+            categoryId = categoryId,
+            title = title,
+            notes = notes,
+            date = date,
+        )
+    )
 
     suspend fun deleteExpense(expense: ExpenseWithCategory) = expenseDao.delete(
-        Expense(id = expense.id, amount = expense.amount, categoryId = expense.categoryId, note = expense.note, date = expense.date)
+        Expense(
+            id = expense.id,
+            amount = expense.amount,
+            currencyCode = expense.currencyCode,
+            exchangeRate = expense.exchangeRate,
+            categoryId = expense.categoryId,
+            title = expense.title,
+            notes = expense.notes,
+            date = expense.date,
+        )
     )
 }

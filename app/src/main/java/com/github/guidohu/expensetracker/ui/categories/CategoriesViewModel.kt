@@ -29,6 +29,14 @@ class CategoriesViewModel(private val repository: ExpenseRepository) : ViewModel
         }
     }
 
+    fun updateCategory(category: Category, name: String, color: Int) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            repository.updateCategory(category, trimmed, color)
+        }
+    }
+
     fun requestDelete(category: Category) {
         viewModelScope.launch {
             if (repository.expenseCountFor(category.id) > 0) {

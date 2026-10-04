@@ -25,6 +25,10 @@ class FakeCategoryDao(initial: List<Category> = emptyList()) : CategoryDao {
         return newId
     }
 
+    override suspend fun update(category: Category) {
+        state.value = state.value.map { if (it.id == category.id) category else it }.sortedBy { it.name }
+    }
+
     override suspend fun delete(category: Category) {
         state.value = state.value.filterNot { it.id == category.id }
     }
@@ -46,7 +50,10 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
         state.value = state.value + ExpenseWithCategory(
             id = newId,
             amount = expense.amount,
-            note = expense.note,
+            currencyCode = expense.currencyCode,
+            exchangeRate = expense.exchangeRate,
+            title = expense.title,
+            notes = expense.notes,
             date = expense.date,
             categoryId = expense.categoryId,
             categoryName = "",

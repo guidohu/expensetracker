@@ -8,7 +8,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Database(entities = [Category::class, Expense::class], version = 1, exportSchema = false)
+@Database(entities = [Category::class, Expense::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun expenseDao(): ExpenseDao
@@ -29,6 +29,9 @@ abstract class AppDatabase : RoomDatabase() {
                             }
                         }
                     })
+                    // Pre-launch app, no installed base to preserve yet — simplest path through
+                    // schema changes. Revisit with real Migrations once this ships.
+                    .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
             }

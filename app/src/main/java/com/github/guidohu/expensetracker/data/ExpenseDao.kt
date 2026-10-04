@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.Flow
 interface ExpenseDao {
     @Query(
         """
-        SELECT e.id AS id, e.amount AS amount, e.note AS note, e.date AS date,
+        SELECT e.id AS id, e.amount AS amount, e.currencyCode AS currencyCode, e.exchangeRate AS exchangeRate,
+               e.title AS title, e.notes AS notes, e.date AS date,
                e.categoryId AS categoryId, c.name AS categoryName, c.color AS categoryColor
         FROM expenses e
         INNER JOIN categories c ON c.id = e.categoryId

@@ -16,7 +16,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.toComposeColor
+import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
 import com.github.guidohu.expensetracker.util.currencySymbol
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 import java.time.Instant
@@ -55,33 +58,46 @@ import java.time.ZoneId
 @Composable
 fun AddExpenseSheet(
     categories: List<Category>,
+    defaultCurrency: String,
+    isSaving: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, categoryId: Long, note: String, date: Long) -> Unit,
+    onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
     var amountText by rememberSaveable { mutableStateOf("") }
-    var note by rememberSaveable { mutableStateOf("") }
+    var title by rememberSaveable { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var currencyCode by rememberSaveable { mutableStateOf(defaultCurrency) }
     var selectedCategoryId by rememberSaveable { mutableStateOf(categories.firstOrNull()?.id) }
     var selectedDate by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showCurrencyPicker by remember { mutableStateOf(false) }
 
     val amountValue = amountText.toDoubleOrNull()
-    val isValid = amountValue != null && amountValue > 0.0 && selectedCategoryId != null
+    val isValid = amountValue != null && amountValue > 0.0 && selectedCategoryId != null && title.isNotBlank()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         AddExpenseSheetContent(
             amountText = amountText,
             onAmountChange = { input -> if (input.count { it == '.' } <= 1) amountText = input },
+            currencyCode = currencyCode,
+            onCurrencyClick = { showCurrencyPicker = true },
+            title = title,
+            onTitleChange = { title = it },
             categories = categories,
             selectedCategoryId = selectedCategoryId,
             onCategorySelect = { selectedCategoryId = it },
-            note = note,
-            onNoteChange = { note = it },
+            notes = notes,
+            onNotesChange = { notes = it },
             selectedDate = selectedDate,
             onDateClick = { showDatePicker = true },
             isValid = isValid,
+            isSaving = isSaving,
             onSave = {
-                onConfirm(requireNotNull(amountValue), requireNotNull(selectedCategoryId), note.trim(), selectedDate)
+                onConfirm(
+                    requireNotNull(amountValue), currencyCode, requireNotNull(selectedCategoryId),
+                    title.trim(), notes.trim(), selectedDate,
+                )
             },
         )
     }
@@ -109,22 +125,35 @@ fun AddExpenseSheet(
             DatePicker(state = datePickerState)
         }
     }
+
+    if (showCurrencyPicker) {
+        CurrencyPickerDialog(
+            onDismiss = { showCurrencyPicker = false },
+            onSelect = { currencyCode = it.code; showCurrencyPicker = false },
+        )
+    }
 }
 
 /** Stateless body of the add-expense sheet, split out from [AddExpenseSheet] so it can be previewed/tested
  * without the surrounding ModalBottomSheet (which renders in a separate platform window). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseSheetContent(
     amountText: String,
     onAmountChange: (String) -> Unit,
+    currencyCode: String,
+    onCurrencyClick: () -> Unit,
+    title: String,
+    onTitleChange: (String) -> Unit,
     categories: List<Category>,
     selectedCategoryId: Long?,
     onCategorySelect: (Long) -> Unit,
-    note: String,
-    onNoteChange: (String) -> Unit,
+    notes: String,
+    onNotesChange: (String) -> Unit,
     selectedDate: Long,
     onDateClick: () -> Unit,
     isValid: Boolean,
+    isSaving: Boolean,
     onSave: () -> Unit,
 ) {
     Column(
@@ -136,13 +165,32 @@ fun AddExpenseSheetContent(
     ) {
         Text("Add expense", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
 
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(top = 16.dp),
+        ) {
+            OutlinedTextField(
+                value = amountText,
+                onValueChange = onAmountChange,
+                label = { Text("Amount") },
+                leadingIcon = { Text(currencySymbol(currencyCode), style = MaterialTheme.typography.headlineSmall) },
+                textStyle = MaterialTheme.typography.headlineSmall,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+            )
+            AssistChip(
+                onClick = onCurrencyClick,
+                label = { Text(currencyCode) },
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+
         OutlinedTextField(
-            value = amountText,
-            onValueChange = onAmountChange,
-            label = { Text("Amount") },
-            leadingIcon = { Text(currencySymbol(), style = MaterialTheme.typography.headlineSmall) },
-            textStyle = MaterialTheme.typography.headlineSmall,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            value = title,
+            onValueChange = onTitleChange,
+            label = { Text("What") },
+            placeholder = { Text("e.g. Socks") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
         )
@@ -179,10 +227,10 @@ fun AddExpenseSheetContent(
         }
 
         OutlinedTextField(
-            value = note,
-            onValueChange = onNoteChange,
-            label = { Text("Note (optional)") },
-            singleLine = true,
+            value = notes,
+            onValueChange = onNotesChange,
+            label = { Text("Notes (optional)") },
+            placeholder = { Text("Any extra detail") },
             modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
         )
 
@@ -212,10 +260,18 @@ fun AddExpenseSheetContent(
 
         Button(
             onClick = onSave,
-            enabled = isValid,
+            enabled = isValid && !isSaving,
             modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
         ) {
-            Text("Save expense")
+            if (isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            } else {
+                Text("Save expense")
+            }
         }
     }
 }

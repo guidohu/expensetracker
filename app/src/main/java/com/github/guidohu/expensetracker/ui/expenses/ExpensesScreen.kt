@@ -30,9 +30,9 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,10 +46,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.guidohu.expensetracker.data.ExpenseRepository
+import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
 import com.github.guidohu.expensetracker.data.toComposeColor
-import com.github.guidohu.expensetracker.ui.RepositoryViewModelFactory
+import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.util.formatCurrency
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
@@ -58,17 +58,27 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExpensesScreen(
-    repository: ExpenseRepository,
+    container: AppContainer,
     onNavigateToCategories: () -> Unit = {},
 ) {
     val viewModel: ExpensesViewModel = viewModel(
-        factory = RepositoryViewModelFactory(repository) { ExpensesViewModel(it) }
+        factory = SimpleViewModelFactory {
+            ExpensesViewModel(container.repository, container.userPreferences, container.exchangeRateService)
+        }
     )
     val expenses by viewModel.expenses.collectAsState()
     val categories by viewModel.categories.collectAsState()
+    val defaultCurrency by viewModel.defaultCurrency.collectAsState()
+    val isSaving by viewModel.isSaving.collectAsState()
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
+        }
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Expenses") }) },
@@ -130,18 +140,17 @@ fun ExpensesScreen(
                         items(dayExpenses, key = { it.id }) { expense ->
                             ExpenseRow(
                                 expense = expense,
+                                defaultCurrency = defaultCurrency,
                                 onDelete = {
                                     viewModel.deleteExpense(expense)
                                     coroutineScope.launch {
                                         val result = snackbarHostState.showSnackbar(
-                                            message = "Deleted ${formatCurrency(expense.amount)} · ${expense.categoryName}",
+                                            message = "Deleted ${expense.title} · ${formatCurrency(expense.amount, expense.currencyCode)}",
                                             actionLabel = "Undo",
                                             duration = SnackbarDuration.Short,
                                         )
                                         if (result == androidx.compose.material3.SnackbarResult.ActionPerformed) {
-                                            viewModel.addExpense(
-                                                expense.amount, expense.categoryId, expense.note, expense.date
-                                            )
+                                            viewModel.restoreExpense(expense)
                                         }
                                     }
                                 },
@@ -156,17 +165,20 @@ fun ExpensesScreen(
     if (showAddSheet) {
         AddExpenseSheet(
             categories = categories,
+            defaultCurrency = defaultCurrency,
+            isSaving = isSaving,
             onDismiss = { showAddSheet = false },
-            onConfirm = { amount, categoryId, note, date ->
-                viewModel.addExpense(amount, categoryId, note, date)
-                showAddSheet = false
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date ->
+                viewModel.addExpense(amount, currencyCode, categoryId, title, notes, date) {
+                    showAddSheet = false
+                }
             },
         )
     }
 }
 
 @Composable
-private fun ExpenseRow(expense: ExpenseWithCategory, onDelete: () -> Unit) {
+private fun ExpenseRow(expense: ExpenseWithCategory, defaultCurrency: String, onDelete: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -188,23 +200,35 @@ private fun ExpenseRow(expense: ExpenseWithCategory, onDelete: () -> Unit) {
             }
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                 Text(
-                    expense.categoryName,
+                    expense.title,
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                 )
-                if (expense.note.isNotBlank()) {
+                val subtitle = if (expense.notes.isNotBlank()) {
+                    "${expense.categoryName} · ${expense.notes}"
+                } else {
+                    expense.categoryName
+                }
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    formatCurrency(expense.amountInDefaultCurrency, defaultCurrency),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (expense.currencyCode != defaultCurrency) {
                     Text(
-                        expense.note,
-                        style = MaterialTheme.typography.bodySmall,
+                        formatCurrency(expense.amount, expense.currencyCode),
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
-            Text(
-                formatCurrency(expense.amount),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-            )
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Filled.Delete,

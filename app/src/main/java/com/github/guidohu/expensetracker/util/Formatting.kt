@@ -3,12 +3,17 @@ package com.github.guidohu.expensetracker.util
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Currency
+import java.util.Locale
 
-private val currencyFormat: NumberFormat = NumberFormat.getCurrencyInstance()
+/** Formats [amount] as currency in [currencyCode] (an explicit app setting, independent of device locale). */
+fun formatCurrency(amount: Double, currencyCode: String): String =
+    NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
+        runCatching { currency = Currency.getInstance(currencyCode) }
+    }.format(amount)
 
-fun formatCurrency(amount: Double): String = currencyFormat.format(amount)
-
-fun currencySymbol(): String = currencyFormat.currency?.symbol ?: "$"
+fun currencySymbol(currencyCode: String): String =
+    runCatching { Currency.getInstance(currencyCode).getSymbol(Locale.getDefault()) }.getOrDefault(currencyCode)
 
 private val dateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy")
 

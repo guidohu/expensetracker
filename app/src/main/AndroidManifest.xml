@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Only used to look up a historical exchange rate (frankfurter.app) when an expense is
+         logged in a currency other than the default. No other network access occurs. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <application
         android:name=".ExpenseTrackerApplication"
         android:allowBackup="true"

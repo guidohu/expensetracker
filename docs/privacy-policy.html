@@ -19,11 +19,20 @@
 
   <ul>
     <li>All categories and expenses you enter are stored locally on your device only, in a local database.</li>
-    <li>The app does not request internet access and has no ability to send your data anywhere.</li>
     <li>No analytics, advertising, or third-party tracking SDKs are included.</li>
     <li>No account, sign-in, or personal information is required or collected.</li>
     <li>Uninstalling the app permanently deletes all of its data from your device.</li>
   </ul>
+
+  <h2 style="font-size: 1.1rem;">The one network request this app makes</h2>
+  <p>
+    If you log an expense in a currency other than your default one, the app looks up that day's
+    exchange rate from <a href="https://www.frankfurter.app">frankfurter.app</a>, a free public
+    service backed by European Central Bank reference rates. That request contains only the two
+    currency codes and a date (e.g. "USD to EUR on 2026-03-01") — never your amount, category,
+    notes, or any other identifying information. If you only ever use one currency, the app makes
+    no network requests at all.
+  </p>
 
   <p>This app is open source. You can review exactly what it does at
     <a href="https://github.com/guidohu/expensetracker">github.com/guidohu/expensetracker</a>.</p>

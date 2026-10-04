@@ -8,16 +8,19 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -28,12 +31,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.github.guidohu.expensetracker.data.ExpenseRepository
+import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.toComposeColor
-import com.github.guidohu.expensetracker.ui.RepositoryViewModelFactory
+import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.BarChart
 import com.github.guidohu.expensetracker.ui.components.BarEntry
 import com.github.guidohu.expensetracker.ui.components.DonutChart
@@ -46,9 +50,9 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatsScreen(repository: ExpenseRepository) {
+fun StatsScreen(container: AppContainer) {
     val viewModel: StatsViewModel = viewModel(
-        factory = RepositoryViewModelFactory(repository) { StatsViewModel(it) }
+        factory = SimpleViewModelFactory { StatsViewModel(container.repository, container.userPreferences) }
     )
     val uiState by viewModel.uiState.collectAsState()
 
@@ -75,16 +79,22 @@ fun StatsScreen(repository: ExpenseRepository) {
                 ) {
                     SummaryCard(
                         title = "This month",
-                        value = formatCurrency(uiState.totalThisMonth),
+                        value = formatCurrency(uiState.totalThisMonth, uiState.defaultCurrency),
                         emphasized = true,
                         modifier = Modifier.weight(1f),
                     )
                     SummaryCard(
                         title = "All time",
-                        value = formatCurrency(uiState.totalAllTime),
+                        value = formatCurrency(uiState.totalAllTime, uiState.defaultCurrency),
                         emphasized = false,
                         modifier = Modifier.weight(1f),
                     )
+                }
+            }
+
+            uiState.monthlyBudget?.let { budget ->
+                item {
+                    BudgetCard(spent = uiState.totalThisMonth, budget = budget, currencyCode = uiState.defaultCurrency)
                 }
             }
 
@@ -117,7 +127,7 @@ fun StatsScreen(repository: ExpenseRepository) {
                                 DonutSlice(it.fraction, it.color.toComposeColor())
                             },
                             centerLabel = "this month",
-                            centerValue = formatCurrency(uiState.totalThisMonth),
+                            centerValue = formatCurrency(uiState.totalThisMonth, uiState.defaultCurrency),
                             modifier = Modifier.size(200.dp).padding(bottom = 20.dp),
                         )
 
@@ -149,7 +159,7 @@ fun StatsScreen(repository: ExpenseRepository) {
                                         modifier = Modifier.padding(end = 10.dp),
                                     )
                                     Text(
-                                        formatCurrency(category.total),
+                                        formatCurrency(category.total, uiState.defaultCurrency),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.SemiBold,
                                     )
@@ -198,6 +208,50 @@ private fun SummaryCard(title: String, value: String, emphasized: Boolean, modif
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.labelLarge)
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun BudgetCard(spent: Double, budget: Double, currencyCode: String, modifier: Modifier = Modifier) {
+    val fraction = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
+    val overBudget = spent > budget
+    val progressColor = when {
+        overBudget -> MaterialTheme.colorScheme.error
+        fraction > 0.8f -> Color(0xFFB8860B)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    Card(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text("Monthly budget", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    if (overBudget) {
+                        "${formatCurrency(spent - budget, currencyCode)} over"
+                    } else {
+                        "${formatCurrency(budget - spent, currencyCode)} left"
+                    },
+                    style = MaterialTheme.typography.labelLarge,
+                    color = progressColor,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                color = progressColor,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
+            )
+            Text(
+                "${formatCurrency(spent, currencyCode)} of ${formatCurrency(budget, currencyCode)}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }
