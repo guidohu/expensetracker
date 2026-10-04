@@ -62,6 +62,23 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
         return newId
     }
 
+    override suspend fun update(expense: Expense) {
+        val existing = state.value.firstOrNull { it.id == expense.id } ?: return
+        state.value = state.value.map {
+            if (it.id == expense.id) {
+                existing.copy(
+                    amount = expense.amount,
+                    currencyCode = expense.currencyCode,
+                    exchangeRate = expense.exchangeRate,
+                    title = expense.title,
+                    notes = expense.notes,
+                    date = expense.date,
+                    categoryId = expense.categoryId,
+                )
+            } else it
+        }
+    }
+
     override suspend fun delete(expense: Expense) {
         state.value = state.value.filterNot { it.id == expense.id }
     }

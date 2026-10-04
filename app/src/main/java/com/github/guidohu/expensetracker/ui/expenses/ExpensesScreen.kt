@@ -71,6 +71,7 @@ fun ExpensesScreen(
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<ExpenseWithCategory?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -141,6 +142,7 @@ fun ExpensesScreen(
                             ExpenseRow(
                                 expense = expense,
                                 defaultCurrency = defaultCurrency,
+                                onClick = { editingExpense = expense },
                                 onDelete = {
                                     viewModel.deleteExpense(expense)
                                     coroutineScope.launch {
@@ -175,11 +177,26 @@ fun ExpensesScreen(
             },
         )
     }
+
+    editingExpense?.let { expense ->
+        AddExpenseSheet(
+            categories = categories,
+            defaultCurrency = defaultCurrency,
+            isSaving = isSaving,
+            existing = expense,
+            onDismiss = { editingExpense = null },
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date ->
+                viewModel.updateExpense(expense.id, amount, currencyCode, categoryId, title, notes, date) {
+                    editingExpense = null
+                }
+            },
+        )
+    }
 }
 
 @Composable
-private fun ExpenseRow(expense: ExpenseWithCategory, defaultCurrency: String, onDelete: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+private fun ExpenseRow(expense: ExpenseWithCategory, defaultCurrency: String, onClick: () -> Unit, onDelete: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,

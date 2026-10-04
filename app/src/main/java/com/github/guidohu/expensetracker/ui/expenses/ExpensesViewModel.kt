@@ -53,20 +53,42 @@ class ExpensesViewModel(
     ) {
         viewModelScope.launch {
             _isSaving.value = true
-            val default = userPreferences.defaultCurrency.value
-            val rate = if (currencyCode == default) {
-                1.0
-            } else {
-                val fetched = exchangeRateService.fetchRate(currencyCode, default, LocalDate.ofEpochDay(date))
-                if (fetched == null) {
-                    _events.send("Couldn't look up the exchange rate — saved at a 1:1 rate for now.")
-                }
-                fetched ?: 1.0
-            }
+            val rate = resolveExchangeRate(currencyCode, date)
             repository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date)
             _isSaving.value = false
             onComplete()
         }
+    }
+
+    /** Updates an existing expense in place, re-resolving the exchange rate (cheap, and correct if the
+     * currency, date, or the app's default currency changed since the expense was first entered). */
+    fun updateExpense(
+        id: Long,
+        amount: Double,
+        currencyCode: String,
+        categoryId: Long,
+        title: String,
+        notes: String,
+        date: Long,
+        onComplete: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val rate = resolveExchangeRate(currencyCode, date)
+            repository.updateExpense(id, amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date)
+            _isSaving.value = false
+            onComplete()
+        }
+    }
+
+    private suspend fun resolveExchangeRate(currencyCode: String, date: Long): Double {
+        val default = userPreferences.defaultCurrency.value
+        if (currencyCode == default) return 1.0
+        val fetched = exchangeRateService.fetchRate(currencyCode, default, LocalDate.ofEpochDay(date))
+        if (fetched == null) {
+            _events.send("Couldn't look up the exchange rate — saved at a 1:1 rate for now.")
+        }
+        return fetched ?: 1.0
     }
 
     fun deleteExpense(expense: ExpenseWithCategory) {

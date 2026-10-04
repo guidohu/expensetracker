@@ -39,6 +39,28 @@ class ExpenseRepository(
         )
     )
 
+    suspend fun updateExpense(
+        id: Long,
+        amount: Double,
+        currencyCode: String,
+        exchangeRate: Double,
+        categoryId: Long,
+        title: String,
+        notes: String,
+        date: Long,
+    ) = expenseDao.update(
+        Expense(
+            id = id,
+            amount = amount,
+            currencyCode = currencyCode,
+            exchangeRate = exchangeRate,
+            categoryId = categoryId,
+            title = title,
+            notes = notes,
+            date = date,
+        )
+    )
+
     suspend fun deleteExpense(expense: ExpenseWithCategory) = expenseDao.delete(
         Expense(
             id = expense.id,

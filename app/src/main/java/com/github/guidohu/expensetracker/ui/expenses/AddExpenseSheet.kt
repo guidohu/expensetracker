@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.github.guidohu.expensetracker.data.Category
+import com.github.guidohu.expensetracker.data.ExpenseWithCategory
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
 import com.github.guidohu.expensetracker.util.currencySymbol
@@ -60,16 +61,17 @@ fun AddExpenseSheet(
     categories: List<Category>,
     defaultCurrency: String,
     isSaving: Boolean,
+    existing: ExpenseWithCategory? = null,
     onDismiss: () -> Unit,
     onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
-    var amountText by rememberSaveable { mutableStateOf("") }
-    var title by rememberSaveable { mutableStateOf("") }
-    var notes by rememberSaveable { mutableStateOf("") }
-    var currencyCode by rememberSaveable { mutableStateOf(defaultCurrency) }
-    var selectedCategoryId by rememberSaveable { mutableStateOf(categories.firstOrNull()?.id) }
-    var selectedDate by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
+    var amountText by rememberSaveable { mutableStateOf(existing?.amount?.let(::formatAmountForEditing) ?: "") }
+    var title by rememberSaveable { mutableStateOf(existing?.title ?: "") }
+    var notes by rememberSaveable { mutableStateOf(existing?.notes ?: "") }
+    var currencyCode by rememberSaveable { mutableStateOf(existing?.currencyCode ?: defaultCurrency) }
+    var selectedCategoryId by rememberSaveable { mutableStateOf(existing?.categoryId ?: categories.firstOrNull()?.id) }
+    var selectedDate by rememberSaveable { mutableStateOf(existing?.date ?: LocalDate.now().toEpochDay()) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showCurrencyPicker by remember { mutableStateOf(false) }
 
@@ -78,6 +80,7 @@ fun AddExpenseSheet(
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         AddExpenseSheetContent(
+            isEditing = existing != null,
             amountText = amountText,
             onAmountChange = { input -> if (input.count { it == '.' } <= 1) amountText = input },
             currencyCode = currencyCode,
@@ -134,11 +137,16 @@ fun AddExpenseSheet(
     }
 }
 
+/** Drops a trailing ".0" so editing a whole-number amount doesn't start with a confusing decimal. */
+private fun formatAmountForEditing(amount: Double): String =
+    if (amount % 1.0 == 0.0) amount.toLong().toString() else amount.toString()
+
 /** Stateless body of the add-expense sheet, split out from [AddExpenseSheet] so it can be previewed/tested
  * without the surrounding ModalBottomSheet (which renders in a separate platform window). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseSheetContent(
+    isEditing: Boolean = false,
     amountText: String,
     onAmountChange: (String) -> Unit,
     currencyCode: String,
@@ -163,7 +171,11 @@ fun AddExpenseSheetContent(
             .padding(horizontal = 20.dp)
             .padding(bottom = 12.dp),
     ) {
-        Text("Add expense", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            if (isEditing) "Edit expense" else "Add expense",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -270,7 +282,7 @@ fun AddExpenseSheetContent(
                     color = MaterialTheme.colorScheme.onPrimary,
                 )
             } else {
-                Text("Save expense")
+                Text(if (isEditing) "Save changes" else "Save expense")
             }
         }
     }
