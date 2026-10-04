@@ -17,13 +17,13 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.github.guidohu.expensetracker"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.github.guidohu.expensetracker"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
+        targetSdk = 36
+        versionCode = 2
         versionName = "1.0"
     }
 
@@ -40,9 +40,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfigs.findByName("release")?.let { signingConfig = it }
+            ndk {
+                // Lets Play Console symbolicate crashes in bundled native libs (e.g. androidx.graphics.path)
+                // without a separate manual symbol upload.
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
         }
     }
 
