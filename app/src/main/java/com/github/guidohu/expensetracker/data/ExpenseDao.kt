@@ -13,7 +13,7 @@ interface ExpenseDao {
         """
         SELECT e.id AS id, e.amount AS amount, e.currencyCode AS currencyCode, e.exchangeRate AS exchangeRate,
                e.title AS title, e.notes AS notes, e.date AS date,
-               e.categoryId AS categoryId, c.name AS categoryName, c.color AS categoryColor
+               e.categoryId AS categoryId, c.name AS categoryName, c.color AS categoryColor, e.mood AS mood
         FROM expenses e
         INNER JOIN categories c ON c.id = e.categoryId
         ORDER BY e.date DESC, e.id DESC
@@ -29,4 +29,7 @@ interface ExpenseDao {
 
     @Delete
     suspend fun delete(expense: Expense)
+
+    @Query("SELECT COALESCE(SUM(amount * exchangeRate), 0.0) FROM expenses WHERE date BETWEEN :startEpochDay AND :endEpochDay")
+    suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double
 }

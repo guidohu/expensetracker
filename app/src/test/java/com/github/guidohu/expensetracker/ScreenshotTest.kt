@@ -11,23 +11,35 @@ import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.UrlPreviewService
 import com.github.guidohu.expensetracker.data.UserPreferences
+import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.ui.categories.CategoriesScreen
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheetContent
 import com.github.guidohu.expensetracker.ui.expenses.ExpensesScreen
+import com.github.guidohu.expensetracker.ui.onboarding.OnboardingScreen
+import com.github.guidohu.expensetracker.ui.settings.SettingsScreen
 import com.github.guidohu.expensetracker.ui.stats.StatsScreen
 import com.github.guidohu.expensetracker.ui.theme.ExpenseTrackerTheme
+import com.github.guidohu.expensetracker.ui.wishlist.WishlistScreen
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 
 /**
- * KNOWN LIMITATION: Paparazzi 1.3.4 doesn't yet recognize compileSdk 36's platform resources
- * (fails with `UninitializedPropertyAccessException: sessionParamsBuilder`). Paparazzi 2.0.0-alpha
- * fixes this but requires JDK 21 and a newer AGP than this project's 8.7.2 — upgrading both cascaded
- * into more risk than was worth taking on here. These tests will fail until either Paparazzi ships a
- * stable compileSdk-36-compatible release, or compileSdk/AGP are deliberately upgraded together.
- * This does not affect the actual app build (assembleRelease/bundleRelease are unaffected).
+ * KNOWN LIMITATION: Paparazzi 1.3.4 doesn't recognize compileSdk 36's platform resources (fails
+ * with `UninitializedPropertyAccessException: sessionParamsBuilder`). Paparazzi 2.0.0-alpha fixes
+ * this but needs JDK 21 and a newer AGP than this project's 8.7.2 — not worth the cascading
+ * upgrade. This does not affect the actual app build (assembleRelease/bundleRelease are fine at
+ * compileSdk 36 always).
+ *
+ * To actually run/record these locally:
+ * 1. `export ANDROID_HOME=<sdk root>` (and `ANDROID_SDK_ROOT`) before invoking Gradle — Paparazzi
+ *    reads these env vars directly at test runtime, not Gradle's `local.properties`/`sdk.dir`.
+ * 2. Temporarily set `compileSdk`/`targetSdk` to 35 (or whatever's installed) in app/build.gradle.kts.
+ * 3. `./gradlew recordPaparazziDebug` to (re)write goldens under app/src/test/snapshots, or
+ *    `./gradlew testDebugUnitTest`/`verifyPaparazziDebug` to just verify against existing ones.
+ * 4. Revert compileSdk/targetSdk back to 36 before building a release.
  */
 class ScreenshotTest {
 
@@ -37,11 +49,17 @@ class ScreenshotTest {
         theme = "android:Theme.Material.Light.NoActionBar",
     )
 
-    private fun containerOf(categories: List<Category>, expenses: List<ExpenseWithCategory>): AppContainer =
+    private fun containerOf(
+        categories: List<Category>,
+        expenses: List<ExpenseWithCategory>,
+        wishlistItems: List<WishlistItem> = emptyList(),
+    ): AppContainer =
         AppContainer(
             repository = repositoryOf(categories, expenses),
+            wishlistRepository = wishlistRepositoryOf(wishlistItems),
             userPreferences = UserPreferences(paparazzi.context),
             exchangeRateService = ExchangeRateService(),
+            urlPreviewService = UrlPreviewService(),
         )
 
     private fun snapshot(
@@ -54,7 +72,11 @@ class ScreenshotTest {
                 val viewModelStoreOwner = remember { object : ViewModelStoreOwner {
                     override val viewModelStore = ViewModelStore()
                 } }
-                CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
+                val activityResultRegistryOwner = remember { fakeActivityResultRegistryOwner() }
+                CompositionLocalProvider(
+                    LocalViewModelStoreOwner provides viewModelStoreOwner,
+                    androidx.activity.compose.LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
+                ) {
                     ExpenseTrackerTheme(darkTheme = darkTheme, dynamicColor = false) {
                         androidx.compose.material3.Surface { content() }
                     }
@@ -85,6 +107,21 @@ class ScreenshotTest {
     }
 
     @Test
+    fun wishlist_populated() = snapshot {
+        WishlistScreen(containerOf(sampleCategories, sampleExpenses, sampleWishlistItems))
+    }
+
+    @Test
+    fun wishlist_populated_dark() = snapshot(darkTheme = true) {
+        WishlistScreen(containerOf(sampleCategories, sampleExpenses, sampleWishlistItems))
+    }
+
+    @Test
+    fun wishlist_empty() = snapshot {
+        WishlistScreen(containerOf(sampleCategories, sampleExpenses, emptyList()))
+    }
+
+    @Test
     fun categories_populated() = snapshot {
         CategoriesScreen(containerOf(sampleCategories, sampleExpenses))
     }
@@ -107,6 +144,30 @@ class ScreenshotTest {
     @Test
     fun stats_empty() = snapshot {
         StatsScreen(containerOf(sampleCategories, emptyList()))
+    }
+
+    @Test
+    fun stats_withBudget() = snapshot {
+        val container = containerOf(sampleCategories, sampleExpenses)
+        container.userPreferences.setMonthlyBudget(150.0)
+        StatsScreen(container)
+    }
+
+    @Test
+    fun settings_screen() = snapshot {
+        val container = containerOf(sampleCategories, sampleExpenses)
+        container.userPreferences.setMonthlyBudget(500.0)
+        SettingsScreen(container)
+    }
+
+    @Test
+    fun onboarding_welcome() = snapshot {
+        OnboardingScreen(onComplete = {})
+    }
+
+    @Test
+    fun onboarding_currency() = snapshot {
+        com.github.guidohu.expensetracker.ui.onboarding.CurrencyStep(selected = "USD", onSelect = {}, onFinish = {})
     }
 
     @Test

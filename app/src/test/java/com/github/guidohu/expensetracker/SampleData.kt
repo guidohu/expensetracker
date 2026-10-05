@@ -3,6 +3,8 @@ package com.github.guidohu.expensetracker
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.WishlistItem
+import com.github.guidohu.expensetracker.data.WishlistRepository
 import java.time.LocalDate
 
 /** Sample data shared by the screenshot tests and the Play Store asset renders. */
@@ -59,3 +61,51 @@ val sampleExpenses = listOf(
 
 fun repositoryOf(categories: List<Category>, expenses: List<ExpenseWithCategory>): ExpenseRepository =
     ExpenseRepository(FakeCategoryDao(categories), FakeExpenseDao(expenses))
+
+fun wishlistRepositoryOf(items: List<WishlistItem> = emptyList()): WishlistRepository =
+    WishlistRepository(FakeWishlistDao(items))
+
+val sampleWishlistItems = listOf(
+    WishlistItem(
+        id = 1,
+        title = "Noise-cancelling headphones",
+        price = 249.0,
+        currencyCode = "USD",
+        note = "Wait for a Black Friday deal",
+        url = "https://example.com/headphones",
+        previewTitle = "Premium Wireless Headphones",
+        previewDescription = "Industry-leading noise cancellation with up to 30 hours of battery life.",
+        previewImageUrl = null,
+        createdAt = LocalDate.now().minusDays(2).toEpochDay(),
+        priority = "WANT",
+        mood = "EXCITED",
+    ),
+    WishlistItem(
+        id = 2,
+        title = "New laptop charger",
+        price = 45.0,
+        currencyCode = "USD",
+        note = "Old one frayed at the cable",
+        url = null,
+        previewTitle = null,
+        previewDescription = null,
+        previewImageUrl = null,
+        createdAt = LocalDate.now().minusDays(5).toEpochDay(),
+        priority = "NEED",
+        mood = "STRESSED",
+    ),
+    WishlistItem(
+        id = 3,
+        title = "Weekend hiking boots",
+        price = null,
+        currencyCode = null,
+        note = "",
+        url = null,
+        previewTitle = null,
+        previewDescription = null,
+        previewImageUrl = null,
+        createdAt = LocalDate.now().minusDays(10).toEpochDay(),
+        priority = "WANT",
+        mood = null,
+    ),
+)

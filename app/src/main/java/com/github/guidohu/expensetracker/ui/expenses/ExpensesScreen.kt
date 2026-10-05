@@ -48,9 +48,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
+import com.github.guidohu.expensetracker.ui.categories.CategoryDialog
 import com.github.guidohu.expensetracker.ui.components.EmptyState
+import com.github.guidohu.expensetracker.ui.components.SearchableTopAppBar
+import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 import kotlinx.coroutines.launch
@@ -59,18 +63,23 @@ import kotlinx.coroutines.launch
 @Composable
 fun ExpensesScreen(
     container: AppContainer,
-    onNavigateToCategories: () -> Unit = {},
+    autoOpenAddSheet: Boolean = false,
+    onAutoOpenConsumed: () -> Unit = {},
 ) {
     val viewModel: ExpensesViewModel = viewModel(
         factory = SimpleViewModelFactory {
             ExpensesViewModel(container.repository, container.userPreferences, container.exchangeRateService)
         }
     )
-    val expenses by viewModel.expenses.collectAsState()
+    val allExpenses by viewModel.expenses.collectAsState()
+    val expenses by viewModel.filteredExpenses.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    var isSearching by rememberSaveable { mutableStateOf(false) }
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
+    var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
     var editingExpense by remember { mutableStateOf<ExpenseWithCategory?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -81,8 +90,23 @@ fun ExpensesScreen(
         }
     }
 
+    LaunchedEffect(autoOpenAddSheet) {
+        if (autoOpenAddSheet) {
+            showAddSheet = true
+            onAutoOpenConsumed()
+        }
+    }
+
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Expenses") }) },
+        topBar = {
+            SearchableTopAppBar(
+                title = "Expenses",
+                isSearching = isSearching,
+                query = searchQuery,
+                onQueryChange = viewModel::setSearchQuery,
+                onSearchToggle = { isSearching = it },
+            )
+        },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
                 Snackbar(
@@ -106,15 +130,21 @@ fun ExpensesScreen(
                 title = "Create a category to get started",
                 body = "Categories group your spending so stats actually mean something.",
                 actionLabel = "Add a category",
-                onAction = onNavigateToCategories,
+                onAction = { showAddCategoryDialog = true },
                 modifier = Modifier.padding(padding),
             )
-            expenses.isEmpty() -> EmptyState(
+            allExpenses.isEmpty() -> EmptyState(
                 icon = Icons.Filled.Receipt,
                 title = "No expenses yet",
                 body = "Tap the + button to log your first expense.",
                 actionLabel = "Add expense",
                 onAction = { showAddSheet = true },
+                modifier = Modifier.padding(padding),
+            )
+            expenses.isEmpty() -> EmptyState(
+                icon = Icons.Filled.Receipt,
+                title = "No matching expenses",
+                body = "Try a different search term.",
                 modifier = Modifier.padding(padding),
             )
             else -> {
@@ -170,8 +200,8 @@ fun ExpensesScreen(
             defaultCurrency = defaultCurrency,
             isSaving = isSaving,
             onDismiss = { showAddSheet = false },
-            onConfirm = { amount, currencyCode, categoryId, title, notes, date ->
-                viewModel.addExpense(amount, currencyCode, categoryId, title, notes, date) {
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date, mood ->
+                viewModel.addExpense(amount, currencyCode, categoryId, title, notes, date, mood) {
                     showAddSheet = false
                 }
             },
@@ -185,10 +215,21 @@ fun ExpensesScreen(
             isSaving = isSaving,
             existing = expense,
             onDismiss = { editingExpense = null },
-            onConfirm = { amount, currencyCode, categoryId, title, notes, date ->
-                viewModel.updateExpense(expense.id, amount, currencyCode, categoryId, title, notes, date) {
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date, mood ->
+                viewModel.updateExpense(expense.id, amount, currencyCode, categoryId, title, notes, date, mood) {
                     editingExpense = null
                 }
+            },
+        )
+    }
+
+    if (showAddCategoryDialog) {
+        CategoryDialog(
+            existing = null,
+            onDismiss = { showAddCategoryDialog = false },
+            onConfirm = { name, color ->
+                coroutineScope.launch { container.repository.addCategory(name, color) }
+                showAddCategoryDialog = false
             },
         )
     }
@@ -196,7 +237,12 @@ fun ExpensesScreen(
 
 @Composable
 private fun ExpenseRow(expense: ExpenseWithCategory, defaultCurrency: String, onClick: () -> Unit, onDelete: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+    Card(
+        onClick = onClick,
+        colors = AppCard.colors,
+        elevation = AppCard.elevation,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -216,11 +262,16 @@ private fun ExpenseRow(expense: ExpenseWithCategory, defaultCurrency: String, on
                 )
             }
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
-                Text(
-                    expense.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        expense.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    moodOrNull(expense.mood)?.let { mood ->
+                        Text(mood.emoji, modifier = Modifier.padding(start = 6.dp))
+                    }
+                }
                 val subtitle = if (expense.notes.isNotBlank()) {
                     "${expense.categoryName} · ${expense.notes}"
                 } else {

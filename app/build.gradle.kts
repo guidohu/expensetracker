@@ -23,7 +23,7 @@ android {
         applicationId = "com.github.guidohu.expensetracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
+        versionCode = 9
         versionName = "1.1"
     }
 
@@ -83,6 +83,7 @@ dependencies {
     debugImplementation(libs.compose.ui.tooling)
 
     implementation(libs.navigation.compose)
+    implementation(libs.coil.compose)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

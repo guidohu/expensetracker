@@ -31,6 +31,8 @@ data class Expense(
     val notes: String,
     /** Epoch day (LocalDate.toEpochDay()), so it sorts and buckets without timezone concerns. */
     val date: Long,
+    /** [Mood.name], or null if not set. */
+    val mood: String? = null,
 )
 
 /** Expense joined with its category's display info, for list rows. */
@@ -45,6 +47,7 @@ data class ExpenseWithCategory(
     val categoryId: Long,
     val categoryName: String,
     val categoryColor: Int,
+    val mood: String? = null,
 ) {
     /** The value of this expense normalized into the default currency active when it was entered. */
     val amountInDefaultCurrency: Double get() = amount * exchangeRate

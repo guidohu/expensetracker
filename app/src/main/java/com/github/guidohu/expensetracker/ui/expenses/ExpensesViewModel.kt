@@ -6,13 +6,16 @@ import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.Mood
 import com.github.guidohu.expensetracker.data.UserPreferences
+import com.github.guidohu.expensetracker.data.moodOrNull
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -37,6 +40,25 @@ class ExpensesViewModel(
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    /** [expenses] filtered by [searchQuery] against title, notes, category name, and mood. */
+    val filteredExpenses: StateFlow<List<ExpenseWithCategory>> = combine(expenses, searchQuery) { items, query ->
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return@combine items
+        items.filter { expense ->
+            expense.title.contains(trimmed, ignoreCase = true) ||
+                expense.notes.contains(trimmed, ignoreCase = true) ||
+                expense.categoryName.contains(trimmed, ignoreCase = true) ||
+                moodOrNull(expense.mood)?.label?.contains(trimmed, ignoreCase = true) == true
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun setSearchQuery(query: String) {
+        _searchQuery.value = query
+    }
+
     private val _events = Channel<String>(Channel.BUFFERED)
     /** One-shot UI messages (snackbar text) — e.g. when an exchange-rate lookup fails. */
     val events: Flow<String> = _events.receiveAsFlow()
@@ -49,12 +71,13 @@ class ExpensesViewModel(
         title: String,
         notes: String,
         date: Long,
+        mood: Mood?,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
             _isSaving.value = true
             val rate = resolveExchangeRate(currencyCode, date)
-            repository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date)
+            repository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
             _isSaving.value = false
             onComplete()
         }
@@ -70,12 +93,13 @@ class ExpensesViewModel(
         title: String,
         notes: String,
         date: Long,
+        mood: Mood?,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
             _isSaving.value = true
             val rate = resolveExchangeRate(currencyCode, date)
-            repository.updateExpense(id, amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date)
+            repository.updateExpense(id, amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
             _isSaving.value = false
             onComplete()
         }
@@ -108,6 +132,7 @@ class ExpensesViewModel(
                 title = expense.title,
                 notes = expense.notes,
                 date = expense.date,
+                mood = moodOrNull(expense.mood),
             )
         }
     }

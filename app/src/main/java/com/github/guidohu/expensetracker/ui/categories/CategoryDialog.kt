@@ -13,7 +13,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Colorize
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -21,14 +24,17 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.CategoryColorPalette
 import com.github.guidohu.expensetracker.data.toComposeColor
+import com.github.guidohu.expensetracker.ui.components.SpectrumColorPickerDialog
 
 /** Add/edit dialog for a category — [existing] null means "add new", non-null means "edit". */
 @Composable
@@ -39,6 +45,7 @@ fun CategoryDialog(
 ) {
     var name by rememberSaveable { mutableStateOf(existing?.name ?: "") }
     var selectedColor by rememberSaveable { mutableStateOf(existing?.color ?: CategoryColorPalette.first()) }
+    var showSpectrumPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -77,6 +84,19 @@ fun CategoryDialog(
                                 .clickable { selectedColor = colorInt }
                         )
                     }
+                    item {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape)
+                                .clickable { showSpectrumPicker = true }
+                        ) {
+                            Icon(Icons.Filled.Colorize, contentDescription = "Custom color", modifier = Modifier.size(18.dp))
+                        }
+                    }
                 }
             }
         },
@@ -89,4 +109,12 @@ fun CategoryDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         },
     )
+
+    if (showSpectrumPicker) {
+        SpectrumColorPickerDialog(
+            initialColor = selectedColor,
+            onDismiss = { showSpectrumPicker = false },
+            onColorSelected = { selectedColor = it; showSpectrumPicker = false },
+        )
+    }
 }

@@ -27,6 +27,7 @@ class ExpenseRepository(
         title: String,
         notes: String,
         date: Long,
+        mood: Mood?,
     ): Long = expenseDao.insert(
         Expense(
             amount = amount,
@@ -36,6 +37,7 @@ class ExpenseRepository(
             title = title,
             notes = notes,
             date = date,
+            mood = mood?.name,
         )
     )
 
@@ -48,6 +50,7 @@ class ExpenseRepository(
         title: String,
         notes: String,
         date: Long,
+        mood: Mood?,
     ) = expenseDao.update(
         Expense(
             id = id,
@@ -58,6 +61,7 @@ class ExpenseRepository(
             title = title,
             notes = notes,
             date = date,
+            mood = mood?.name,
         )
     )
 
@@ -71,6 +75,10 @@ class ExpenseRepository(
             title = expense.title,
             notes = expense.notes,
             date = expense.date,
+            mood = expense.mood,
         )
     )
+
+    suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double =
+        expenseDao.totalInRange(startEpochDay, endEpochDay)
 }

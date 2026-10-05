@@ -4,17 +4,47 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Database(entities = [Category::class, Expense::class], version = 2, exportSchema = false)
+@Database(entities = [Category::class, Expense::class, WishlistItem::class], version = 3, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun expenseDao(): ExpenseDao
+    abstract fun wishlistDao(): WishlistDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null
+
+        /**
+         * This app has a real installed base (it's on the Play Store), so schema bumps must carry
+         * a real migration — a destructive fallback here would silently wipe every user's expenses.
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `expenses` ADD COLUMN `mood` TEXT")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `wishlist_items` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `price` REAL,
+                        `currencyCode` TEXT,
+                        `note` TEXT NOT NULL,
+                        `url` TEXT,
+                        `previewTitle` TEXT,
+                        `previewDescription` TEXT,
+                        `previewImageUrl` TEXT,
+                        `createdAt` INTEGER NOT NULL,
+                        `priority` TEXT NOT NULL,
+                        `mood` TEXT
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
 
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
             instance ?: synchronized(this) {
@@ -29,9 +59,7 @@ abstract class AppDatabase : RoomDatabase() {
                             }
                         }
                     })
-                    // Pre-launch app, no installed base to preserve yet — simplest path through
-                    // schema changes. Revisit with real Migrations once this ships.
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

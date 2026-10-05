@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Only used to look up a historical exchange rate (frankfurter.app) when an expense is
-         logged in a currency other than the default. No other network access occurs. -->
+    <!-- Two small network calls, both outgoing lookups only: historical exchange rates
+         (frankfurter.app) when an expense is logged in a non-default currency, and fetching a
+         wishlist link's Open Graph preview (title/description/image). No other network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:name=".ExpenseTrackerApplication"
@@ -16,12 +19,29 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:theme="@style/Theme.ExpenseTracker">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Lets a browser's "Share" sheet offer this app; the URL lands in a new wishlist entry. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
         </activity>
+
+        <receiver android:name=".notifications.DailyReminderReceiver" android:exported="false" />
+        <receiver android:name=".notifications.BudgetCheckReceiver" android:exported="false" />
+        <receiver android:name=".notifications.NotificationActionReceiver" android:exported="false" />
+        <receiver android:name=".notifications.BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

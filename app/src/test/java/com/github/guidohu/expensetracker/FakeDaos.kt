@@ -5,6 +5,8 @@ import com.github.guidohu.expensetracker.data.CategoryDao
 import com.github.guidohu.expensetracker.data.Expense
 import com.github.guidohu.expensetracker.data.ExpenseDao
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.WishlistDao
+import com.github.guidohu.expensetracker.data.WishlistItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -58,6 +60,7 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
             categoryId = expense.categoryId,
             categoryName = "",
             categoryColor = 0xFF888888.toInt(),
+            mood = expense.mood,
         )
         return newId
     }
@@ -74,6 +77,7 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
                     notes = expense.notes,
                     date = expense.date,
                     categoryId = expense.categoryId,
+                    mood = expense.mood,
                 )
             } else it
         }
@@ -81,5 +85,29 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
 
     override suspend fun delete(expense: Expense) {
         state.value = state.value.filterNot { it.id == expense.id }
+    }
+
+    override suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double =
+        state.value.filter { it.date in startEpochDay..endEpochDay }.sumOf { it.amountInDefaultCurrency }
+}
+
+/** In-memory WishlistDao for screenshot tests. */
+class FakeWishlistDao(initial: List<WishlistItem> = emptyList()) : WishlistDao {
+    val state = MutableStateFlow(initial.sortedWith(compareByDescending<WishlistItem> { it.createdAt }.thenByDescending { it.id }))
+
+    override fun getAll(): Flow<List<WishlistItem>> = state
+
+    override suspend fun insert(item: WishlistItem): Long {
+        val newId = (state.value.maxOfOrNull { it.id } ?: 0L) + 1
+        state.value = state.value + item.copy(id = newId)
+        return newId
+    }
+
+    override suspend fun update(item: WishlistItem) {
+        state.value = state.value.map { if (it.id == item.id) item else it }
+    }
+
+    override suspend fun delete(item: WishlistItem) {
+        state.value = state.value.filterNot { it.id == item.id }
     }
 }

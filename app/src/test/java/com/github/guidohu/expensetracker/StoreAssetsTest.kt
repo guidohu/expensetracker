@@ -18,12 +18,15 @@ import app.cash.paparazzi.Paparazzi
 import com.android.resources.Density
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.ExchangeRateService
+import com.github.guidohu.expensetracker.data.UrlPreviewService
 import com.github.guidohu.expensetracker.data.UserPreferences
 import com.github.guidohu.expensetracker.ui.categories.CategoriesScreen
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheetContent
 import com.github.guidohu.expensetracker.ui.expenses.ExpensesScreen
+import com.github.guidohu.expensetracker.ui.settings.SettingsScreen
 import com.github.guidohu.expensetracker.ui.stats.StatsScreen
 import com.github.guidohu.expensetracker.ui.theme.ExpenseTrackerTheme
+import com.github.guidohu.expensetracker.ui.wishlist.WishlistScreen
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
@@ -48,10 +51,12 @@ class StoreAssetsTest {
         theme = "android:Theme.Material.Light.NoActionBar",
     )
 
-    private fun container() = AppContainer(
+    private fun container(wishlistItems: List<com.github.guidohu.expensetracker.data.WishlistItem> = emptyList()) = AppContainer(
         repository = repositoryOf(sampleCategories, sampleExpenses),
+        wishlistRepository = wishlistRepositoryOf(wishlistItems),
         userPreferences = UserPreferences(paparazzi.context),
         exchangeRateService = ExchangeRateService(),
+        urlPreviewService = UrlPreviewService(),
     )
 
     private fun screenshot(content: @androidx.compose.runtime.Composable () -> Unit) {
@@ -60,7 +65,11 @@ class StoreAssetsTest {
                 val viewModelStoreOwner = remember { object : ViewModelStoreOwner {
                     override val viewModelStore = ViewModelStore()
                 } }
-                CompositionLocalProvider(LocalViewModelStoreOwner provides viewModelStoreOwner) {
+                val activityResultRegistryOwner = remember { fakeActivityResultRegistryOwner() }
+                CompositionLocalProvider(
+                    LocalViewModelStoreOwner provides viewModelStoreOwner,
+                    androidx.activity.compose.LocalActivityResultRegistryOwner provides activityResultRegistryOwner,
+                ) {
                     ExpenseTrackerTheme(darkTheme = false, dynamicColor = false) {
                         androidx.compose.material3.Surface { content() }
                     }
@@ -81,8 +90,20 @@ class StoreAssetsTest {
     }
 
     @Test
+    fun shot_wishlist() = screenshot {
+        WishlistScreen(container(sampleWishlistItems))
+    }
+
+    @Test
     fun shot_categories() = screenshot {
         CategoriesScreen(container())
+    }
+
+    @Test
+    fun shot_settings() = screenshot {
+        val c = container()
+        c.userPreferences.setMonthlyBudget(500.0)
+        SettingsScreen(c)
     }
 
     @Test

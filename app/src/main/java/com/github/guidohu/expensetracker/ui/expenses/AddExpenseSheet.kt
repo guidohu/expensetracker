@@ -47,8 +47,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.Mood
+import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
+import com.github.guidohu.expensetracker.ui.components.MoodPicker
 import com.github.guidohu.expensetracker.util.currencySymbol
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 import java.time.Instant
@@ -63,7 +66,7 @@ fun AddExpenseSheet(
     isSaving: Boolean,
     existing: ExpenseWithCategory? = null,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long) -> Unit,
+    onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long, mood: Mood?) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
     var amountText by rememberSaveable { mutableStateOf(existing?.amount?.let(::formatAmountForEditing) ?: "") }
@@ -72,6 +75,7 @@ fun AddExpenseSheet(
     var currencyCode by rememberSaveable { mutableStateOf(existing?.currencyCode ?: defaultCurrency) }
     var selectedCategoryId by rememberSaveable { mutableStateOf(existing?.categoryId ?: categories.firstOrNull()?.id) }
     var selectedDate by rememberSaveable { mutableStateOf(existing?.date ?: LocalDate.now().toEpochDay()) }
+    var selectedMood by rememberSaveable { mutableStateOf(moodOrNull(existing?.mood)) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showCurrencyPicker by remember { mutableStateOf(false) }
 
@@ -94,12 +98,14 @@ fun AddExpenseSheet(
             onNotesChange = { notes = it },
             selectedDate = selectedDate,
             onDateClick = { showDatePicker = true },
+            selectedMood = selectedMood,
+            onMoodSelect = { selectedMood = it },
             isValid = isValid,
             isSaving = isSaving,
             onSave = {
                 onConfirm(
                     requireNotNull(amountValue), currencyCode, requireNotNull(selectedCategoryId),
-                    title.trim(), notes.trim(), selectedDate,
+                    title.trim(), notes.trim(), selectedDate, selectedMood,
                 )
             },
         )
@@ -131,6 +137,7 @@ fun AddExpenseSheet(
 
     if (showCurrencyPicker) {
         CurrencyPickerDialog(
+            currentSelection = currencyCode,
             onDismiss = { showCurrencyPicker = false },
             onSelect = { currencyCode = it.code; showCurrencyPicker = false },
         )
@@ -160,6 +167,8 @@ fun AddExpenseSheetContent(
     onNotesChange: (String) -> Unit,
     selectedDate: Long,
     onDateClick: () -> Unit,
+    selectedMood: Mood? = null,
+    onMoodSelect: (Mood?) -> Unit = {},
     isValid: Boolean,
     isSaving: Boolean,
     onSave: () -> Unit,
@@ -269,6 +278,14 @@ fun AddExpenseSheetContent(
                 )
             }
         }
+
+        Text(
+            "Mood (optional)",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
+        )
+        MoodPicker(selected = selectedMood, onSelect = onMoodSelect)
 
         Button(
             onClick = onSave,
