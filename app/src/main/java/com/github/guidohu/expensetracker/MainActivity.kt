@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent) {
-        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
+        if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/plain") == true) {
             val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
             val url = sharedText?.let { URL_REGEX.find(it)?.value }
             if (url != null) sharedWishlistUrl.value = url
@@ -109,8 +109,16 @@ fun ExpenseTrackerApp(
 
     val navController = rememberNavController()
 
+    // Latched locally, independent of sharedWishlistUrl, so WishlistScreen consuming its prefill
+    // (clearing pendingWishlistUrl) can never race with — or get raced by — this effect, which
+    // clears sharedWishlistUrl itself the moment it reads it.
+    var pendingWishlistUrl by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(sharedWishlistUrl.value) {
-        if (sharedWishlistUrl.value != null) {
+        val url = sharedWishlistUrl.value
+        if (url != null) {
+            pendingWishlistUrl = url
+            sharedWishlistUrl.value = null
             navController.navigate(Destination.Wishlist.route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
@@ -119,8 +127,13 @@ fun ExpenseTrackerApp(
         }
     }
 
+    // Same latch-then-clear-the-source pattern as pendingWishlistUrl above, for the same reason.
+    var pendingOpenAddExpense by remember { mutableStateOf(false) }
+
     LaunchedEffect(openAddExpense.value) {
         if (openAddExpense.value) {
+            pendingOpenAddExpense = true
+            openAddExpense.value = false
             navController.navigate(Destination.Expenses.route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
@@ -172,15 +185,15 @@ fun ExpenseTrackerApp(
             composable(Destination.Expenses.route) {
                 ExpensesScreen(
                     container,
-                    autoOpenAddSheet = openAddExpense.value,
-                    onAutoOpenConsumed = { openAddExpense.value = false },
+                    autoOpenAddSheet = pendingOpenAddExpense,
+                    onAutoOpenConsumed = { pendingOpenAddExpense = false },
                 )
             }
             composable(Destination.Wishlist.route) {
                 WishlistScreen(
                     container,
-                    prefillUrl = sharedWishlistUrl.value,
-                    onPrefillConsumed = { sharedWishlistUrl.value = null },
+                    prefillUrl = pendingWishlistUrl,
+                    onPrefillConsumed = { pendingWishlistUrl = null },
                 )
             }
             composable(Destination.Categories.route) { CategoriesScreen(container) }

@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -76,6 +77,15 @@ fun AddWishlistSheet(
 
     val isValid = title.isNotBlank()
     val priceValue = priceText.toDoubleOrNull()?.takeIf { it > 0.0 }
+
+    // Once the link preview resolves, default the title to the page's title — but only while the
+    // user hasn't typed one themselves, so this never clobbers a manual entry or an edited item.
+    LaunchedEffect(previewState) {
+        val loadedTitle = (previewState as? PreviewState.Loaded)?.preview?.title
+        if (loadedTitle != null && title.isBlank()) {
+            title = loadedTitle
+        }
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         Column(
