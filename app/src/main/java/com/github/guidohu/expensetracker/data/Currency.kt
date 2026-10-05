@@ -38,3 +38,12 @@ val SupportedCurrencies: List<AppCurrency> = listOf(
 
 fun currencyFor(code: String): AppCurrency =
     SupportedCurrencies.firstOrNull { it.code == code } ?: AppCurrency(code, code, code)
+
+fun filterCurrencies(query: String): List<AppCurrency> =
+    if (query.isBlank()) {
+        SupportedCurrencies
+    } else {
+        SupportedCurrencies.filter {
+            it.code.contains(query, ignoreCase = true) || it.displayName.contains(query, ignoreCase = true)
+        }
+    }

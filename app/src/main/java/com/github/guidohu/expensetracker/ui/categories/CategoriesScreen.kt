@@ -43,6 +43,7 @@ import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.EmptyState
+import com.github.guidohu.expensetracker.ui.theme.AppCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -129,6 +130,8 @@ fun CategoriesScreen(container: AppContainer) {
 private fun CategoryRow(category: Category, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         onClick = onClick,
+        colors = AppCard.colors,
+        elevation = AppCard.elevation,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
     ) {
         Row(
@@ -137,10 +140,18 @@ private fun CategoryRow(category: Category, onClick: () -> Unit, onDelete: () ->
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(category.color.toComposeColor())
-            )
+                    .background(category.color.toComposeColor().copy(alpha = 0.18f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(category.color.toComposeColor())
+                )
+            }
             Text(
                 category.name,
                 style = MaterialTheme.typography.titleMedium,

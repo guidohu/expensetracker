@@ -43,6 +43,7 @@ import com.github.guidohu.expensetracker.ui.components.BarEntry
 import com.github.guidohu.expensetracker.ui.components.DonutChart
 import com.github.guidohu.expensetracker.ui.components.DonutSlice
 import com.github.guidohu.expensetracker.ui.components.EmptyState
+import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 import java.time.YearMonth
 import java.time.format.TextStyle
@@ -133,7 +134,8 @@ fun StatsScreen(container: AppContainer) {
 
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                            colors = AppCard.colors,
+                            elevation = AppCard.elevation,
                         ) {
                             uiState.categoryTotalsThisMonth.forEachIndexed { index, category ->
                                 if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -143,10 +145,18 @@ fun StatsScreen(container: AppContainer) {
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(12.dp)
+                                            .size(32.dp)
                                             .clip(CircleShape)
-                                            .background(category.color.toComposeColor())
-                                    )
+                                            .background(category.color.toComposeColor().copy(alpha = 0.18f)),
+                                        contentAlignment = Alignment.Center,
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp)
+                                                .clip(CircleShape)
+                                                .background(category.color.toComposeColor())
+                                        )
+                                    }
                                     Text(
                                         category.name,
                                         modifier = Modifier.padding(start = 12.dp).weight(1f),
@@ -176,7 +186,7 @@ fun StatsScreen(container: AppContainer) {
 
             item {
                 val currentMonth = YearMonth.now()
-                Card {
+                Card(colors = AppCard.colors, elevation = AppCard.elevation) {
                     BarChart(
                         entries = uiState.monthlyTotals.map {
                             BarEntry(it.label, it.total, highlighted = it.yearMonth == currentMonth)
@@ -202,8 +212,9 @@ private fun SummaryCard(title: String, value: String, emphasized: Boolean, modif
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )
         } else {
-            CardDefaults.cardColors()
+            AppCard.colors
         },
+        elevation = if (emphasized) AppCard.emphasizedElevation else AppCard.elevation,
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(title, style = MaterialTheme.typography.labelLarge)
@@ -222,7 +233,11 @@ private fun BudgetCard(spent: Double, budget: Double, currencyCode: String, modi
         else -> MaterialTheme.colorScheme.primary
     }
 
-    Card(modifier = modifier.fillMaxWidth()) {
+    Card(
+        colors = AppCard.colors,
+        elevation = AppCard.elevation,
+        modifier = modifier.fillMaxWidth(),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),

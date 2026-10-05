@@ -33,9 +33,9 @@ private val LightColors = lightColorScheme(
     onTertiary = Color(0xFFFFFFFF),
     tertiaryContainer = Color(0xFFC1E8FB),
     onTertiaryContainer = Color(0xFF001F29),
-    background = Color(0xFFF7FBF1),
+    background = Color(0xFFEBF0E3),
     onBackground = Color(0xFF181D17),
-    surface = Color(0xFFF7FBF1),
+    surface = Color(0xFFEBF0E3),
     onSurface = Color(0xFF181D17),
     surfaceVariant = Color(0xFFDEE5D8),
     onSurfaceVariant = Color(0xFF424940),
@@ -44,11 +44,14 @@ private val LightColors = lightColorScheme(
     inverseSurface = Color(0xFF2D322C),
     inverseOnSurface = Color(0xFFEEF2E7),
     inversePrimary = Color(0xFF98D593),
+    // Deliberately flat white for the top container tiers (rather than M3's usual tonal ramp) so
+    // cards read as crisp, raised white surfaces against the tinted page background — the contrast
+    // was missing when this inherited a tint too close to `background`.
     surfaceContainerLowest = Color(0xFFFFFFFF),
-    surfaceContainerLow = Color(0xFFF1F5EB),
-    surfaceContainer = Color(0xFFEBEFE5),
-    surfaceContainerHigh = Color(0xFFE5E9E0),
-    surfaceContainerHighest = Color(0xFFDFE4DA),
+    surfaceContainerLow = Color(0xFFF4F8EF),
+    surfaceContainer = Color(0xFFFFFFFF),
+    surfaceContainerHigh = Color(0xFFFFFFFF),
+    surfaceContainerHighest = Color(0xFFFFFFFF),
 )
 
 private val DarkColors = darkColorScheme(
