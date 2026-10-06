@@ -45,6 +45,21 @@ class UserPreferences(context: Context) {
         get() = prefs.getString(KEY_LAST_BUDGET_CONGRATS_MONTH, null)
         set(value) { prefs.edit().putString(KEY_LAST_BUDGET_CONGRATS_MONTH, value).apply() }
 
+    /** Epoch day of the most recent expense as of the last no-spend-streak check — lets the
+     * streak check tell "still the same streak" apart from "a new expense reset it". */
+    var lastStreakAnchorDate: Long?
+        get() = if (prefs.contains(KEY_STREAK_ANCHOR_DATE)) prefs.getLong(KEY_STREAK_ANCHOR_DATE, 0L) else null
+        set(value) {
+            prefs.edit().apply {
+                if (value == null) remove(KEY_STREAK_ANCHOR_DATE) else putLong(KEY_STREAK_ANCHOR_DATE, value)
+            }.apply()
+        }
+
+    /** The largest no-spend-streak milestone (in days) already notified for the current streak. */
+    var lastStreakMilestoneNotified: Int
+        get() = prefs.getInt(KEY_STREAK_MILESTONE_NOTIFIED, 0)
+        set(value) { prefs.edit().putInt(KEY_STREAK_MILESTONE_NOTIFIED, value).apply() }
+
     fun setDailyReminderEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_REMINDER_ENABLED, enabled).apply()
         _dailyReminderEnabled.value = enabled
@@ -87,5 +102,7 @@ class UserPreferences(context: Context) {
         private const val KEY_REMINDER_MINUTE = "daily_reminder_minute"
         private const val KEY_BUDGET_CONGRATS_ENABLED = "budget_congrats_enabled"
         private const val KEY_LAST_BUDGET_CONGRATS_MONTH = "last_budget_congrats_month"
+        private const val KEY_STREAK_ANCHOR_DATE = "streak_anchor_date"
+        private const val KEY_STREAK_MILESTONE_NOTIFIED = "streak_milestone_notified"
     }
 }

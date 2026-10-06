@@ -81,4 +81,6 @@ class ExpenseRepository(
 
     suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double =
         expenseDao.totalInRange(startEpochDay, endEpochDay)
+
+    suspend fun lastExpenseDate(): Long? = expenseDao.maxDate()
 }

@@ -2,6 +2,9 @@ package com.github.guidohu.expensetracker.ui.wishlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.github.guidohu.expensetracker.data.Category
+import com.github.guidohu.expensetracker.data.ExchangeRateService
+import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.Mood
 import com.github.guidohu.expensetracker.data.UrlPreview
 import com.github.guidohu.expensetracker.data.UrlPreviewService
@@ -12,12 +15,15 @@ import com.github.guidohu.expensetracker.data.WishlistRepository
 import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -33,6 +39,8 @@ class WishlistViewModel(
     private val repository: WishlistRepository,
     userPreferences: UserPreferences,
     private val urlPreviewService: UrlPreviewService,
+    private val expenseRepository: ExpenseRepository,
+    private val exchangeRateService: ExchangeRateService,
 ) : ViewModel() {
 
     val items: StateFlow<List<WishlistItem>> = repository.items.stateIn(
@@ -40,11 +48,19 @@ class WishlistViewModel(
     )
     val defaultCurrency: StateFlow<String> = userPreferences.defaultCurrency
 
+    val categories: StateFlow<List<Category>> = expenseRepository.categories.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
+
+    private val _events = Channel<String>(Channel.BUFFERED)
+    /** One-shot UI messages (snackbar text) — e.g. when an exchange-rate lookup fails. */
+    val events: Flow<String> = _events.receiveAsFlow()
 
     /** [items] filtered by [searchQuery] against title, note, link preview title, mood, and priority. */
     val filteredItems: StateFlow<List<WishlistItem>> = combine(items, searchQuery) { list, query ->
@@ -101,6 +117,7 @@ class WishlistViewModel(
         url: String?,
         priority: WishlistPriority,
         mood: Mood?,
+        categoryId: Long?,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
@@ -118,6 +135,7 @@ class WishlistViewModel(
                 createdAt = LocalDate.now().toEpochDay(),
                 priority = priority,
                 mood = mood,
+                categoryId = categoryId,
             )
             _isSaving.value = false
             onComplete()
@@ -133,6 +151,7 @@ class WishlistViewModel(
         url: String?,
         priority: WishlistPriority,
         mood: Mood?,
+        categoryId: Long?,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
@@ -151,6 +170,7 @@ class WishlistViewModel(
                 createdAt = existing.createdAt,
                 priority = priority,
                 mood = mood,
+                categoryId = categoryId,
             )
             _isSaving.value = false
             onComplete()
@@ -176,7 +196,39 @@ class WishlistViewModel(
                 createdAt = item.createdAt,
                 priority = wishlistPriorityOrDefault(item.priority),
                 mood = moodOrNull(item.mood),
+                categoryId = item.categoryId,
             )
+        }
+    }
+
+    /** Turns a wishlist entry into a real expense — looking up the exchange rate like
+     * [com.github.guidohu.expensetracker.ui.expenses.ExpensesViewModel.addExpense] does — then
+     * removes it from the wishlist. */
+    fun moveToExpense(
+        item: WishlistItem,
+        amount: Double,
+        currencyCode: String,
+        categoryId: Long,
+        title: String,
+        notes: String,
+        date: Long,
+        mood: Mood?,
+        onComplete: () -> Unit,
+    ) {
+        viewModelScope.launch {
+            _isSaving.value = true
+            val default = defaultCurrency.value
+            val rate = if (currencyCode == default) {
+                1.0
+            } else {
+                val fetched = exchangeRateService.fetchRate(currencyCode, default, LocalDate.ofEpochDay(date))
+                if (fetched == null) _events.send("Couldn't look up the exchange rate — saved at a 1:1 rate for now.")
+                fetched ?: 1.0
+            }
+            expenseRepository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
+            repository.deleteItem(item)
+            _isSaving.value = false
+            onComplete()
         }
     }
 }

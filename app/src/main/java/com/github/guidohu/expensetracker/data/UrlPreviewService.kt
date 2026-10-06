@@ -21,29 +21,51 @@ class UrlPreviewService {
 
     suspend fun fetch(url: String): UrlPreview? = withContext(Dispatchers.IO) {
         runCatching {
-            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 10_000
-                readTimeout = 10_000
-                requestMethod = "GET"
-                instanceFollowRedirects = true
-                setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; ExpenseTrackerBot/1.0)")
+            // Shared/short links (what the share flow usually hands us, vs. a real URL typed by
+            // hand) commonly 30x-redirect to the real product page. HttpURLConnection's own
+            // instanceFollowRedirects leaves getURL() pointing at the ORIGINAL short link even
+            // after following the chain, so a page-relative og:image ("/img/x.jpg") would resolve
+            // against the wrong host. Follow redirects manually so we know the real final URL.
+            var currentUrl = url
+            var html = ""
+            for (hop in 0 until MAX_REDIRECTS) {
+                val connection = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 10_000
+                    readTimeout = 10_000
+                    requestMethod = "GET"
+                    instanceFollowRedirects = false
+                    setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; ExpenseTrackerBot/1.0)")
+                }
+                val responseCode = connection.responseCode
+                if (responseCode in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                    connection.disconnect()
+                    if (location == null) break
+                    currentUrl = URL(URL(currentUrl), location).toString()
+                    continue
+                }
+                html = connection.inputStream.bufferedReader().use { reader ->
+                    val buffer = CharArray(MAX_CHARS)
+                    val count = reader.read(buffer)
+                    if (count <= 0) "" else String(buffer, 0, count)
+                }
+                connection.disconnect()
+                break
             }
-            val html = connection.inputStream.bufferedReader().use { reader ->
-                val buffer = CharArray(MAX_CHARS)
-                val count = reader.read(buffer)
-                if (count <= 0) "" else String(buffer, 0, count)
-            }
-            connection.disconnect()
-            html
-        }.mapCatching { html ->
+            currentUrl to html
+        }.mapCatching { (finalUrl, html) ->
             val preview = UrlPreview(
                 title = metaContent(html, "og:title") ?: titleTag(html),
                 description = metaContent(html, "og:description") ?: metaContent(html, "description"),
-                imageUrl = metaContent(html, "og:image"),
+                imageUrl = metaContent(html, "og:image")?.let { resolveUrl(finalUrl, it) },
             )
             if (preview.title == null && preview.description == null && preview.imageUrl == null) null else preview
         }.getOrNull()
     }
+
+    /** Resolves a possibly relative or protocol-relative og:image value against the page it came from. */
+    private fun resolveUrl(baseUrl: String, maybeRelative: String): String =
+        runCatching { URL(URL(baseUrl), maybeRelative).toString() }.getOrDefault(maybeRelative)
 
     private fun metaContent(html: String, property: String): String? {
         val pattern = Regex(
@@ -72,5 +94,6 @@ class UrlPreviewService {
 
     companion object {
         private const val MAX_CHARS = 200_000
+        private const val MAX_REDIRECTS = 5
     }
 }

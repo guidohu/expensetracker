@@ -89,6 +89,8 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
 
     override suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double =
         state.value.filter { it.date in startEpochDay..endEpochDay }.sumOf { it.amountInDefaultCurrency }
+
+    override suspend fun maxDate(): Long? = state.value.maxOfOrNull { it.date }
 }
 
 /** In-memory WishlistDao for screenshot tests. */

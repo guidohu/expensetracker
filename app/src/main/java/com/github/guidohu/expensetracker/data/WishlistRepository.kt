@@ -17,6 +17,7 @@ class WishlistRepository(private val wishlistDao: WishlistDao) {
         createdAt: Long,
         priority: WishlistPriority,
         mood: Mood?,
+        categoryId: Long?,
     ): Long = wishlistDao.insert(
         WishlistItem(
             title = title,
@@ -30,6 +31,7 @@ class WishlistRepository(private val wishlistDao: WishlistDao) {
             createdAt = createdAt,
             priority = priority.name,
             mood = mood?.name,
+            categoryId = categoryId,
         )
     )
 
@@ -46,6 +48,7 @@ class WishlistRepository(private val wishlistDao: WishlistDao) {
         createdAt: Long,
         priority: WishlistPriority,
         mood: Mood?,
+        categoryId: Long?,
     ) = wishlistDao.update(
         WishlistItem(
             id = id,
@@ -60,6 +63,7 @@ class WishlistRepository(private val wishlistDao: WishlistDao) {
             createdAt = createdAt,
             priority = priority.name,
             mood = mood?.name,
+            categoryId = categoryId,
         )
     )
 

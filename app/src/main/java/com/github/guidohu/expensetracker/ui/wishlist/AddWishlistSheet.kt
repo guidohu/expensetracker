@@ -1,5 +1,6 @@
 package com.github.guidohu.expensetracker.ui.wishlist
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,16 +9,24 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -35,10 +44,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.Mood
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.WishlistPriority
 import com.github.guidohu.expensetracker.data.moodOrNull
+import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
 import com.github.guidohu.expensetracker.ui.components.MoodPicker
@@ -51,10 +62,12 @@ fun AddWishlistSheet(
     defaultCurrency: String,
     isSaving: Boolean,
     previewState: PreviewState,
+    categories: List<Category>,
     onUrlChanged: (String) -> Unit,
     existing: WishlistItem? = null,
     initialUrl: String? = null,
     onDismiss: () -> Unit,
+    onMoveToExpense: (() -> Unit)? = null,
     onConfirm: (
         title: String,
         price: Double?,
@@ -63,6 +76,7 @@ fun AddWishlistSheet(
         url: String?,
         priority: WishlistPriority,
         mood: Mood?,
+        categoryId: Long?,
     ) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
@@ -73,6 +87,7 @@ fun AddWishlistSheet(
     var urlText by rememberSaveable { mutableStateOf(existing?.url ?: initialUrl ?: "") }
     var priority by rememberSaveable { mutableStateOf(wishlistPriorityOrDefault(existing?.priority)) }
     var selectedMood by rememberSaveable { mutableStateOf(moodOrNull(existing?.mood)) }
+    var selectedCategoryId by rememberSaveable { mutableStateOf(existing?.categoryId) }
     var showCurrencyPicker by rememberSaveable { mutableStateOf(false) }
 
     val isValid = title.isNotBlank()
@@ -147,6 +162,37 @@ fun AddWishlistSheet(
                 }
             }
 
+            if (categories.isNotEmpty()) {
+                Text(
+                    "Category (optional)",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(categories, key = { it.id }) { category ->
+                        FilterChip(
+                            selected = category.id == selectedCategoryId,
+                            onClick = {
+                                selectedCategoryId = if (selectedCategoryId == category.id) null else category.id
+                            },
+                            leadingIcon = {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(category.color.toComposeColor())
+                                )
+                            },
+                            label = { Text(category.name) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = category.color.toComposeColor().copy(alpha = 0.22f),
+                            ),
+                        )
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = urlText,
                 onValueChange = { urlText = it; onUrlChanged(it) },
@@ -184,6 +230,7 @@ fun AddWishlistSheet(
                         urlText.trim().takeIf { it.isNotBlank() },
                         priority,
                         selectedMood,
+                        selectedCategoryId,
                     )
                 },
                 enabled = isValid && !isSaving,
@@ -197,6 +244,17 @@ fun AddWishlistSheet(
                     )
                 } else {
                     Text(if (existing == null) "Save to wishlist" else "Save changes")
+                }
+            }
+
+            if (existing != null && onMoveToExpense != null) {
+                OutlinedButton(
+                    onClick = onMoveToExpense,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) {
+                    Icon(Icons.Filled.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Move to expense", modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }

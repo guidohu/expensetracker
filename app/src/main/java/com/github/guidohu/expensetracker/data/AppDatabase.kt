@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-@Database(entities = [Category::class, Expense::class, WishlistItem::class], version = 3, exportSchema = false)
+@Database(entities = [Category::class, Expense::class, WishlistItem::class], version = 4, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun expenseDao(): ExpenseDao
@@ -46,6 +46,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `wishlist_items` ADD COLUMN `categoryId` INTEGER REFERENCES `categories`(`id`) ON DELETE SET NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_wishlist_items_categoryId` ON `wishlist_items` (`categoryId`)")
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context, AppDatabase::class.java, "expense_tracker.db")
@@ -59,7 +66,7 @@ abstract class AppDatabase : RoomDatabase() {
                             }
                         }
                     })
-                    .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { instance = it }
             }

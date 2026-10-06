@@ -1,9 +1,22 @@
 package com.github.guidohu.expensetracker.data
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "wishlist_items")
+@Entity(
+    tableName = "wishlist_items",
+    foreignKeys = [
+        ForeignKey(
+            entity = Category::class,
+            parentColumns = ["id"],
+            childColumns = ["categoryId"],
+            onDelete = ForeignKey.SET_NULL,
+        )
+    ],
+    indices = [Index("categoryId")],
+)
 data class WishlistItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     /** The short "what" — e.g. "Noise-cancelling headphones". */
@@ -28,4 +41,6 @@ data class WishlistItem(
     val priority: String,
     /** [Mood.name], or null if not set. */
     val mood: String?,
+    /** [Category.id] this item is earmarked for, or null if not set. */
+    val categoryId: Long? = null,
 )

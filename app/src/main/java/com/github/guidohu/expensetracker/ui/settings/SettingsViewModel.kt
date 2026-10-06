@@ -39,8 +39,10 @@ class SettingsViewModel(private val userPreferences: UserPreferences) : ViewMode
         userPreferences.setBudgetCongratsEnabled(enabled)
         if (enabled) {
             ReminderScheduler.scheduleBudgetCheck(context)
+            ReminderScheduler.scheduleStreakCheck(context)
         } else {
             ReminderScheduler.cancelBudgetCheck(context)
+            ReminderScheduler.cancelStreakCheck(context)
         }
     }
 }

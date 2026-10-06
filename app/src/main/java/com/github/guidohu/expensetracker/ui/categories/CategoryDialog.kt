@@ -64,9 +64,13 @@ fun CategoryDialog(
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                 )
+                // Fixed column count sized so the palette plus the custom-color swatch fits in
+                // exactly two rows, with the custom swatch landing last rather than spilling onto
+                // a row (or a scrolled-off third row) of its own.
+                val columns = (CategoryColorPalette.size + 1 + 1) / 2
                 LazyVerticalGrid(
-                    columns = GridCells.Adaptive(40.dp),
-                    modifier = Modifier.fillMaxWidth().height(96.dp),
+                    columns = GridCells.Fixed(columns),
+                    modifier = Modifier.fillMaxWidth().height(88.dp),
                 ) {
                     items(CategoryColorPalette) { colorInt ->
                         val isSelected = colorInt == selectedColor

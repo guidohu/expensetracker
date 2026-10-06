@@ -58,6 +58,16 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 
+/** Pre-populates a fresh (non-editing) [AddExpenseSheet] — e.g. turning a wishlist item into an expense. */
+data class ExpensePrefill(
+    val amount: Double?,
+    val currencyCode: String?,
+    val categoryId: Long?,
+    val title: String,
+    val notes: String,
+    val mood: Mood?,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddExpenseSheet(
@@ -65,17 +75,22 @@ fun AddExpenseSheet(
     defaultCurrency: String,
     isSaving: Boolean,
     existing: ExpenseWithCategory? = null,
+    prefill: ExpensePrefill? = null,
     onDismiss: () -> Unit,
     onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long, mood: Mood?) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
-    var amountText by rememberSaveable { mutableStateOf(existing?.amount?.let(::formatAmountForEditing) ?: "") }
-    var title by rememberSaveable { mutableStateOf(existing?.title ?: "") }
-    var notes by rememberSaveable { mutableStateOf(existing?.notes ?: "") }
-    var currencyCode by rememberSaveable { mutableStateOf(existing?.currencyCode ?: defaultCurrency) }
-    var selectedCategoryId by rememberSaveable { mutableStateOf(existing?.categoryId ?: categories.firstOrNull()?.id) }
+    var amountText by rememberSaveable {
+        mutableStateOf((existing?.amount ?: prefill?.amount)?.let(::formatAmountForEditing) ?: "")
+    }
+    var title by rememberSaveable { mutableStateOf(existing?.title ?: prefill?.title ?: "") }
+    var notes by rememberSaveable { mutableStateOf(existing?.notes ?: prefill?.notes ?: "") }
+    var currencyCode by rememberSaveable { mutableStateOf(existing?.currencyCode ?: prefill?.currencyCode ?: defaultCurrency) }
+    var selectedCategoryId by rememberSaveable {
+        mutableStateOf(existing?.categoryId ?: prefill?.categoryId ?: categories.firstOrNull()?.id)
+    }
     var selectedDate by rememberSaveable { mutableStateOf(existing?.date ?: LocalDate.now().toEpochDay()) }
-    var selectedMood by rememberSaveable { mutableStateOf(moodOrNull(existing?.mood)) }
+    var selectedMood by rememberSaveable { mutableStateOf(moodOrNull(existing?.mood) ?: prefill?.mood) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showCurrencyPicker by remember { mutableStateOf(false) }
 

@@ -49,12 +49,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.github.guidohu.expensetracker.data.AppContainer
+import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.ui.components.SearchableTopAppBar
+import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheet
+import com.github.guidohu.expensetracker.ui.expenses.ExpensePrefill
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
@@ -68,11 +71,18 @@ fun WishlistScreen(
 ) {
     val viewModel: WishlistViewModel = viewModel(
         factory = SimpleViewModelFactory {
-            WishlistViewModel(container.wishlistRepository, container.userPreferences, container.urlPreviewService)
+            WishlistViewModel(
+                container.wishlistRepository,
+                container.userPreferences,
+                container.urlPreviewService,
+                container.repository,
+                container.exchangeRateService,
+            )
         }
     )
     val allItems by viewModel.items.collectAsState()
     val items by viewModel.filteredItems.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val previewState by viewModel.previewState.collectAsState()
@@ -81,8 +91,15 @@ fun WishlistScreen(
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
     var addSheetInitialUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var editingItem by remember { mutableStateOf<WishlistItem?>(null) }
+    var itemToMoveToExpense by remember { mutableStateOf<WishlistItem?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collect { message ->
+            snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Long)
+        }
+    }
 
     LaunchedEffect(prefillUrl) {
         if (prefillUrl != null) {
@@ -151,6 +168,7 @@ fun WishlistScreen(
                     WishlistRow(
                         item = item,
                         defaultCurrency = defaultCurrency,
+                        category = categories.firstOrNull { it.id == item.categoryId },
                         onClick = {
                             viewModel.seedExistingPreview(item)
                             editingItem = item
@@ -179,11 +197,12 @@ fun WishlistScreen(
             defaultCurrency = defaultCurrency,
             isSaving = isSaving,
             previewState = previewState,
+            categories = categories,
             onUrlChanged = viewModel::onUrlChanged,
             initialUrl = addSheetInitialUrl,
             onDismiss = { showAddSheet = false },
-            onConfirm = { title, price, currencyCode, note, url, priority, mood ->
-                viewModel.addItem(title, price, currencyCode, note, url, priority, mood) {
+            onConfirm = { title, price, currencyCode, note, url, priority, mood, categoryId ->
+                viewModel.addItem(title, price, currencyCode, note, url, priority, mood, categoryId) {
                     showAddSheet = false
                 }
             },
@@ -195,12 +214,39 @@ fun WishlistScreen(
             defaultCurrency = defaultCurrency,
             isSaving = isSaving,
             previewState = previewState,
+            categories = categories,
             onUrlChanged = viewModel::onUrlChanged,
             existing = item,
             onDismiss = { editingItem = null },
-            onConfirm = { title, price, currencyCode, note, url, priority, mood ->
-                viewModel.updateItem(item, title, price, currencyCode, note, url, priority, mood) {
+            onMoveToExpense = {
+                editingItem = null
+                itemToMoveToExpense = item
+            },
+            onConfirm = { title, price, currencyCode, note, url, priority, mood, categoryId ->
+                viewModel.updateItem(item, title, price, currencyCode, note, url, priority, mood, categoryId) {
                     editingItem = null
+                }
+            },
+        )
+    }
+
+    itemToMoveToExpense?.let { item ->
+        AddExpenseSheet(
+            categories = categories,
+            defaultCurrency = defaultCurrency,
+            isSaving = isSaving,
+            prefill = ExpensePrefill(
+                amount = item.price,
+                currencyCode = item.currencyCode,
+                categoryId = item.categoryId,
+                title = item.title,
+                notes = item.note,
+                mood = moodOrNull(item.mood),
+            ),
+            onDismiss = { itemToMoveToExpense = null },
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date, mood ->
+                viewModel.moveToExpense(item, amount, currencyCode, categoryId, title, notes, date, mood) {
+                    itemToMoveToExpense = null
                 }
             },
         )
@@ -208,7 +254,13 @@ fun WishlistScreen(
 }
 
 @Composable
-private fun WishlistRow(item: WishlistItem, defaultCurrency: String, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun WishlistRow(
+    item: WishlistItem,
+    defaultCurrency: String,
+    category: Category?,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+) {
     Card(
         onClick = onClick,
         colors = AppCard.colors,
@@ -248,6 +300,7 @@ private fun WishlistRow(item: WishlistItem, defaultCurrency: String, onClick: ()
                     }
                 }
                 val subtitle = wishlistPriorityOrDefault(item.priority).label +
+                    (category?.name)?.let { " · $it" }.orEmpty() +
                     (item.previewTitle ?: item.note).takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty()
                 Text(
                     subtitle,

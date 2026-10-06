@@ -129,7 +129,7 @@ fun SettingsScreen(container: AppContainer) {
             ToggleSettingsRow(
                 icon = Icons.Filled.EmojiEvents,
                 title = "Budget congratulations",
-                value = "Notify me when I stay under budget for the month",
+                value = "Notify me when I stay under budget, or go a streak without spending",
                 checked = budgetCongratsEnabled,
                 onCheckedChange = { enabled ->
                     if (enabled) {

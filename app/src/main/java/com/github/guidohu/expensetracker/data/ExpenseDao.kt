@@ -32,4 +32,8 @@ interface ExpenseDao {
 
     @Query("SELECT COALESCE(SUM(amount * exchangeRate), 0.0) FROM expenses WHERE date BETWEEN :startEpochDay AND :endEpochDay")
     suspend fun totalInRange(startEpochDay: Long, endEpochDay: Long): Double
+
+    /** Epoch day of the most recent expense, or null if none have ever been logged. */
+    @Query("SELECT MAX(date) FROM expenses")
+    suspend fun maxDate(): Long?
 }

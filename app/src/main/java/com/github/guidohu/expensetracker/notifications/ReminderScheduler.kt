@@ -28,8 +28,10 @@ object ReminderScheduler {
         }
         if (prefs.budgetCongratsEnabled.value) {
             scheduleBudgetCheck(context)
+            scheduleStreakCheck(context)
         } else {
             cancelBudgetCheck(context)
+            cancelStreakCheck(context)
         }
     }
 
@@ -55,6 +57,17 @@ object ReminderScheduler {
         alarmManager(context).cancel(budgetCheckPendingIntent(context))
     }
 
+    fun scheduleStreakCheck(context: Context) {
+        val now = ZonedDateTime.now()
+        var trigger = now.withHour(9).withMinute(5).withSecond(0).withNano(0)
+        if (!trigger.isAfter(now)) trigger = trigger.plusDays(1)
+        schedule(context, trigger.toInstant().toEpochMilli(), streakCheckPendingIntent(context))
+    }
+
+    fun cancelStreakCheck(context: Context) {
+        alarmManager(context).cancel(streakCheckPendingIntent(context))
+    }
+
     private fun schedule(context: Context, triggerAtMillis: Long, pendingIntent: PendingIntent) {
         alarmManager(context).setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAtMillis, pendingIntent)
     }
@@ -73,6 +86,13 @@ object ReminderScheduler {
         context,
         NotificationHelper.REQUEST_CODE_BUDGET_CHECK,
         Intent(context, BudgetCheckReceiver::class.java),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    private fun streakCheckPendingIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context,
+        NotificationHelper.REQUEST_CODE_STREAK_CHECK,
+        Intent(context, NoSpendStreakReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 }

@@ -11,9 +11,11 @@ object NotificationHelper {
 
     const val NOTIFICATION_ID_DAILY_REMINDER = 1001
     const val NOTIFICATION_ID_BUDGET_CONGRATS = 1002
+    const val NOTIFICATION_ID_STREAK_CONGRATS = 1003
 
     const val REQUEST_CODE_DAILY_REMINDER = 2001
     const val REQUEST_CODE_BUDGET_CHECK = 2002
+    const val REQUEST_CODE_STREAK_CHECK = 2003
 
     /** Set on the intent that opens [com.github.guidohu.expensetracker.MainActivity] from the "Add expenses" action. */
     const val EXTRA_OPEN_ADD_EXPENSE = "com.github.guidohu.expensetracker.OPEN_ADD_EXPENSE"
@@ -32,7 +34,7 @@ object NotificationHelper {
                 CHANNEL_BUDGET_CONGRATS,
                 "Budget achievements",
                 NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { description = "Congratulates you when you stay under your monthly budget." }
+            ).apply { description = "Congratulates you when you stay under your monthly budget, or go a streak without spending." }
         )
     }
 }
