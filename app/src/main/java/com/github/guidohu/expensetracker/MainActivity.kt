@@ -177,10 +177,13 @@ fun ExpenseTrackerApp(
             }
         }
     ) { innerPadding ->
+        // Only the bottom (nav bar) inset is applied here — each screen has its own
+        // Scaffold/TopAppBar that already accounts for the status bar inset, so
+        // applying the top inset here too would double-pad the top of every screen.
         NavHost(
             navController = navController,
             startDestination = Destination.Expenses.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
         ) {
             composable(Destination.Expenses.route) {
                 ExpensesScreen(
