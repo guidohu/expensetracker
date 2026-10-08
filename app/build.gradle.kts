@@ -23,7 +23,7 @@ android {
         applicationId = "com.github.guidohu.expensetracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
+        versionCode = 21
         versionName = "2.0"
     }
 

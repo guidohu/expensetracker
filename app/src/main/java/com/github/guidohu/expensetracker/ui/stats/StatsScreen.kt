@@ -1,6 +1,7 @@
 package com.github.guidohu.expensetracker.ui.stats
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +24,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,11 +33,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,14 +48,16 @@ import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.BarChart
 import com.github.guidohu.expensetracker.ui.components.BarEntry
+import com.github.guidohu.expensetracker.ui.components.BarSegment
 import com.github.guidohu.expensetracker.ui.components.DonutChart
 import com.github.guidohu.expensetracker.ui.components.DonutSlice
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
-import java.time.YearMonth
-import java.time.format.TextStyle
-import java.util.Locale
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,99 +109,12 @@ fun StatsScreen(container: AppContainer) {
                 }
             }
 
-            item {
-                Column {
-                    Text(
-                        "Spending by category",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        currentMonthLabel(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            item {
-                if (uiState.categoryTotalsThisMonth.isEmpty()) {
-                    Text(
-                        "No expenses this month yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        DonutChart(
-                            slices = uiState.categoryTotalsThisMonth.map {
-                                DonutSlice(it.fraction, it.color.toComposeColor())
-                            },
-                            centerLabel = "this month",
-                            centerValue = formatCurrency(uiState.totalThisMonth, uiState.defaultCurrency),
-                            modifier = Modifier.size(200.dp).padding(bottom = 20.dp),
-                        )
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = AppCard.colors,
-                            elevation = AppCard.elevation,
-                        ) {
-                            uiState.categoryTotalsThisMonth.forEachIndexed { index, category ->
-                                if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(CircleShape)
-                                            .background(category.color.toComposeColor().copy(alpha = 0.18f)),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(14.dp)
-                                                .clip(CircleShape)
-                                                .background(category.color.toComposeColor())
-                                        )
-                                    }
-                                    Text(
-                                        category.name,
-                                        modifier = Modifier.padding(start = 12.dp).weight(1f),
-                                        style = MaterialTheme.typography.bodyLarge,
-                                    )
-                                    Text(
-                                        "${(category.fraction * 100).toInt()}%",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(end = 10.dp),
-                                    )
-                                    Text(
-                                        formatCurrency(category.total, uiState.defaultCurrency),
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Text("Last 6 months", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            }
-
-            item {
-                val currentMonth = YearMonth.now()
-                Card(colors = AppCard.colors, elevation = AppCard.elevation) {
-                    BarChart(
-                        entries = uiState.monthlyTotals.map {
-                            BarEntry(it.label, it.total, highlighted = it.yearMonth == currentMonth)
-                        },
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            uiState.historic?.let { historic ->
+                item {
+                    HistoricStatsSection(
+                        historic = historic,
+                        currencyCode = uiState.defaultCurrency,
+                        onSelectPeriod = viewModel::selectPeriod,
                     )
                 }
             }
@@ -199,8 +122,208 @@ fun StatsScreen(container: AppContainer) {
     }
 }
 
-private fun currentMonthLabel(): String =
-    YearMonth.now().month.getDisplayName(TextStyle.FULL, Locale.getDefault())
+private val rangeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+
+private fun rangeLabel(start: LocalDate, end: LocalDate): String =
+    if (start == end) start.format(rangeFormatter) else "${start.format(rangeFormatter)} – ${end.format(rangeFormatter)}"
+
+@Composable
+private fun HistoricStatsSection(
+    historic: HistoricStats,
+    currencyCode: String,
+    onSelectPeriod: (StatsPeriod) -> Unit,
+) {
+    val pagerState = rememberPagerState { historic.dimensions.size }
+    val scope = rememberCoroutineScope()
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        HorizontalDivider()
+        Text(
+            rangeLabel(historic.rangeStart, historic.rangeEnd),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        // Bleed the chips to the screen edges so they scroll under the page margin instead of clipping at it.
+        LazyRow(
+            modifier = Modifier.layout { measurable, constraints ->
+                val bleed = 16.dp.roundToPx()
+                val placeable = measurable.measure(constraints.copy(maxWidth = constraints.maxWidth + 2 * bleed))
+                layout(constraints.maxWidth, placeable.height) { placeable.place(-bleed, 0) }
+            },
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(StatsPeriod.entries) { period ->
+                FilterChip(
+                    selected = period == historic.period,
+                    onClick = { onSelectPeriod(period) },
+                    label = { Text(period.label) },
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            MetricTile("Total", formatCurrency(historic.total, currencyCode), Modifier.weight(1f))
+            MetricTile(
+                "Avg / ${historic.averageUnit}",
+                formatCurrency(historic.average, currencyCode),
+                Modifier.weight(1f),
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                "Spending by ${historic.dimensions[pagerState.currentPage].dimension.title}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            PageDots(
+                count = historic.dimensions.size,
+                current = pagerState.currentPage,
+                onSelect = { page -> scope.launch { pagerState.animateScrollToPage(page) } },
+            )
+        }
+
+        HorizontalPager(
+            state = pagerState,
+            pageSpacing = 16.dp,
+            verticalAlignment = Alignment.Top,
+            modifier = Modifier.fillMaxWidth(),
+        ) { page ->
+            DimensionPage(historic, historic.dimensions[page], currencyCode)
+        }
+    }
+}
+
+@Composable
+private fun DimensionPage(historic: HistoricStats, stats: DimensionStats, currencyCode: String) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        DonutChart(
+            slices = stats.groups.map { DonutSlice(it.fraction, it.color.toComposeColor()) },
+            centerLabel = historic.period.label.lowercase(),
+            centerValue = formatCurrency(historic.total, currencyCode),
+            modifier = Modifier.size(200.dp),
+        )
+
+        Card(modifier = Modifier.fillMaxWidth(), colors = AppCard.colors, elevation = AppCard.elevation) {
+            BarChart(
+                entries = stats.bars.map { bucket ->
+                    BarEntry(
+                        label = bucket.label,
+                        value = bucket.total,
+                        highlighted = bucket.highlighted,
+                        segments = bucket.segments.map { BarSegment(it.value, it.color.toComposeColor()) },
+                    )
+                },
+                modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp),
+            )
+        }
+
+        if (stats.groups.isEmpty()) {
+            Text(
+                "No expenses in this period.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Card(modifier = Modifier.fillMaxWidth(), colors = AppCard.colors, elevation = AppCard.elevation) {
+                stats.groups.forEachIndexed { index, group ->
+                    if (index > 0) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                    GroupRow(group, currencyCode)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupRow(group: GroupTotal, currencyCode: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(group.color.toComposeColor().copy(alpha = 0.18f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (group.emoji != null) {
+                Text(group.emoji, style = MaterialTheme.typography.bodyLarge)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(14.dp)
+                        .clip(CircleShape)
+                        .background(group.color.toComposeColor())
+                )
+            }
+        }
+        Text(
+            group.name,
+            modifier = Modifier.padding(start = 12.dp).weight(1f),
+            style = MaterialTheme.typography.bodyLarge,
+        )
+        Text(
+            "${(group.fraction * 100).toInt()}%",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 10.dp),
+        )
+        Text(
+            formatCurrency(group.total, currencyCode),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+private fun MetricTile(title: String, value: String, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, colors = AppCard.colors, elevation = AppCard.elevation) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun PageDots(count: Int, current: Int, onSelect: (Int) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        repeat(count) { page ->
+            // The touch target is larger than the dot it draws.
+            Box(
+                modifier = Modifier.size(24.dp).clip(CircleShape).clickable { onSelect(page) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(if (page == current) 10.dp else 8.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (page == current) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.outlineVariant
+                        )
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun SummaryCard(title: String, value: String, emphasized: Boolean, modifier: Modifier = Modifier) {
