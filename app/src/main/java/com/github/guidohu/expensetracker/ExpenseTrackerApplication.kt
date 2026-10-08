@@ -1,8 +1,10 @@
 package com.github.guidohu.expensetracker
 
 import android.app.Application
+import androidx.room.withTransaction
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.AppDatabase
+import com.github.guidohu.expensetracker.data.BackupManager
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.UrlPreviewService
@@ -18,12 +20,17 @@ class ExpenseTrackerApplication : Application() {
 
     val container: AppContainer by lazy {
         val db = AppDatabase.getInstance(this, applicationScope)
+        val userPreferences = UserPreferences(this)
         AppContainer(
             repository = ExpenseRepository(db.categoryDao(), db.expenseDao()),
             wishlistRepository = WishlistRepository(db.wishlistDao()),
-            userPreferences = UserPreferences(this),
+            userPreferences = userPreferences,
             exchangeRateService = ExchangeRateService(),
             urlPreviewService = UrlPreviewService(),
+            backupManager = BackupManager(
+                db.categoryDao(), db.expenseDao(), db.wishlistDao(), userPreferences,
+                inTransaction = { block -> db.withTransaction { block() } },
+            ),
         )
     }
 

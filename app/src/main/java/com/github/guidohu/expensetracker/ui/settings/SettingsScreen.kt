@@ -2,6 +2,7 @@ package com.github.guidohu.expensetracker.ui.settings
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,11 +13,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Savings
@@ -27,6 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +41,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,7 +68,7 @@ import com.github.guidohu.expensetracker.util.formatCurrency
 fun SettingsScreen(container: AppContainer) {
     val context = LocalContext.current
     val viewModel: SettingsViewModel = viewModel(
-        factory = SimpleViewModelFactory { SettingsViewModel(container.userPreferences) }
+        factory = SimpleViewModelFactory { SettingsViewModel(container.userPreferences, container.backupManager) }
     )
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val monthlyBudget by viewModel.monthlyBudget.collectAsState()
@@ -68,6 +76,11 @@ fun SettingsScreen(container: AppContainer) {
     val dailyReminderHour by viewModel.dailyReminderHour.collectAsState()
     val dailyReminderMinute by viewModel.dailyReminderMinute.collectAsState()
     val budgetCongratsEnabled by viewModel.budgetCongratsEnabled.collectAsState()
+    val backupBusy by viewModel.backupBusy.collectAsState()
+    val backupMessage by viewModel.backupMessage.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
+    // The backup file the user picked, held while they confirm it will replace their current data.
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var showCurrencyPicker by remember { mutableStateOf(false) }
     var showBudgetDialog by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
@@ -81,6 +94,21 @@ fun SettingsScreen(container: AppContainer) {
         pendingEnable = null
     }
 
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri -> if (uri != null) viewModel.exportBackup(context, uri) }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> pendingRestoreUri = uri }
+
+    LaunchedEffect(backupMessage) {
+        backupMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.backupMessageShown()
+        }
+    }
+
     fun enableWithPermission(onEnabled: () -> Unit) {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -92,8 +120,13 @@ fun SettingsScreen(container: AppContainer) {
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Settings") }) }) { padding ->
-        Column(modifier = Modifier.fillMaxWidth().padding(padding).padding(16.dp)) {
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Settings") }) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp)
+        ) {
             SettingsRow(
                 icon = Icons.Filled.AttachMoney,
                 title = "Default currency",
@@ -141,7 +174,40 @@ fun SettingsScreen(container: AppContainer) {
                 onRowClick = null,
                 modifier = Modifier.padding(top = 12.dp),
             )
+            SettingsRow(
+                icon = Icons.Filled.CloudUpload,
+                title = "Back up data",
+                value = "Save all expenses, categories, wishlist and settings to a file",
+                onClick = { exportLauncher.launch(viewModel.suggestedBackupFileName()) },
+                enabled = !backupBusy,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            SettingsRow(
+                icon = Icons.Filled.CloudDownload,
+                title = "Restore from backup",
+                value = "Replace all current data with a previous backup",
+                onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")) },
+                enabled = !backupBusy,
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
+    }
+
+    pendingRestoreUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingRestoreUri = null },
+            title = { Text("Restore backup?") },
+            text = {
+                Text("This replaces all expenses, categories, wishlist items and settings currently in the app with the contents of the backup. This can't be undone.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingRestoreUri = null
+                    viewModel.restoreBackup(context, uri)
+                }) { Text("Replace my data") }
+            },
+            dismissButton = { TextButton(onClick = { pendingRestoreUri = null }) { Text("Cancel") } },
+        )
     }
 
     if (showCurrencyPicker) {
@@ -242,9 +308,11 @@ private fun SettingsRow(
     value: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Card(
         onClick = onClick,
+        enabled = enabled,
         colors = AppCard.colors,
         elevation = AppCard.elevation,
         modifier = modifier.fillMaxWidth(),

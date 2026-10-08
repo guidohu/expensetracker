@@ -1,8 +1,10 @@
 package com.github.guidohu.expensetracker
 
+import com.github.guidohu.expensetracker.data.BackupManager
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.BackupSettings
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.WishlistRepository
 import java.time.LocalDate
@@ -61,6 +63,9 @@ val sampleExpenses = listOf(
 
 fun repositoryOf(categories: List<Category>, expenses: List<ExpenseWithCategory>): ExpenseRepository =
     ExpenseRepository(FakeCategoryDao(categories), FakeExpenseDao(expenses))
+
+fun backupManagerOf(userPreferences: BackupSettings): BackupManager =
+    BackupManager(FakeCategoryDao(), FakeExpenseDao(), FakeWishlistDao(), userPreferences, inTransaction = { it() })
 
 fun wishlistRepositoryOf(items: List<WishlistItem> = emptyList()): WishlistRepository =
     WishlistRepository(FakeWishlistDao(items))

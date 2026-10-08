@@ -22,6 +22,12 @@ interface ExpenseDao {
     )
     fun getAllWithCategory(): Flow<List<ExpenseWithCategory>>
 
+    @Query("SELECT * FROM expenses ORDER BY id ASC")
+    suspend fun getAllOnce(): List<Expense>
+
+    @Query("DELETE FROM expenses")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(expense: Expense): Long
 

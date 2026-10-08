@@ -22,9 +22,15 @@ class FakeCategoryDao(initial: List<Category> = emptyList()) : CategoryDao {
     override fun getAll(): Flow<List<Category>> = state
 
     override suspend fun insert(category: Category): Long {
-        val newId = (state.value.maxOfOrNull { it.id } ?: 0L) + 1
+        val newId = category.id.takeIf { it != 0L } ?: ((state.value.maxOfOrNull { it.id } ?: 0L) + 1)
         state.value = (state.value + category.copy(id = newId)).sortedBy { it.name }
         return newId
+    }
+
+    override suspend fun getAllOnce(): List<Category> = state.value.sortedBy { it.id }
+
+    override suspend fun deleteAll() {
+        state.value = emptyList()
     }
 
     override suspend fun update(category: Category) {
@@ -48,7 +54,7 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
     override fun getAllWithCategory(): Flow<List<ExpenseWithCategory>> = state
 
     override suspend fun insert(expense: Expense): Long {
-        val newId = (state.value.maxOfOrNull { it.id } ?: 0L) + 1
+        val newId = expense.id.takeIf { it != 0L } ?: ((state.value.maxOfOrNull { it.id } ?: 0L) + 1)
         state.value = state.value + ExpenseWithCategory(
             id = newId,
             amount = expense.amount,
@@ -61,8 +67,23 @@ class FakeExpenseDao(initial: List<ExpenseWithCategory> = emptyList()) : Expense
             categoryName = "",
             categoryColor = 0xFF888888.toInt(),
             mood = expense.mood,
+            priority = expense.priority,
+            url = expense.url,
+            wishlistAddedAt = expense.wishlistAddedAt,
         )
         return newId
+    }
+
+    override suspend fun getAllOnce(): List<Expense> = state.value.sortedBy { it.id }.map {
+        Expense(
+            id = it.id, amount = it.amount, currencyCode = it.currencyCode, exchangeRate = it.exchangeRate,
+            categoryId = it.categoryId, title = it.title, notes = it.notes, date = it.date, mood = it.mood,
+            priority = it.priority, url = it.url, wishlistAddedAt = it.wishlistAddedAt,
+        )
+    }
+
+    override suspend fun deleteAll() {
+        state.value = emptyList()
     }
 
     override suspend fun update(expense: Expense) {
@@ -100,9 +121,15 @@ class FakeWishlistDao(initial: List<WishlistItem> = emptyList()) : WishlistDao {
     override fun getAll(): Flow<List<WishlistItem>> = state
 
     override suspend fun insert(item: WishlistItem): Long {
-        val newId = (state.value.maxOfOrNull { it.id } ?: 0L) + 1
+        val newId = item.id.takeIf { it != 0L } ?: ((state.value.maxOfOrNull { it.id } ?: 0L) + 1)
         state.value = state.value + item.copy(id = newId)
         return newId
+    }
+
+    override suspend fun getAllOnce(): List<WishlistItem> = state.value.sortedBy { it.id }
+
+    override suspend fun deleteAll() {
+        state.value = emptyList()
     }
 
     override suspend fun update(item: WishlistItem) {

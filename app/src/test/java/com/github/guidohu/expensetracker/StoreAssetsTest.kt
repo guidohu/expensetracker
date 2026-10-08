@@ -51,13 +51,16 @@ class StoreAssetsTest {
         theme = "android:Theme.Material.Light.NoActionBar",
     )
 
-    private fun container(wishlistItems: List<com.github.guidohu.expensetracker.data.WishlistItem> = emptyList()) = AppContainer(
-        repository = repositoryOf(sampleCategories, sampleExpenses),
-        wishlistRepository = wishlistRepositoryOf(wishlistItems),
-        userPreferences = UserPreferences(paparazzi.context),
-        exchangeRateService = ExchangeRateService(),
-        urlPreviewService = UrlPreviewService(),
-    )
+    private fun container(wishlistItems: List<com.github.guidohu.expensetracker.data.WishlistItem> = emptyList()) = UserPreferences(paparazzi.context).let { prefs ->
+        AppContainer(
+            repository = repositoryOf(sampleCategories, sampleExpenses),
+            wishlistRepository = wishlistRepositoryOf(wishlistItems),
+            userPreferences = prefs,
+            exchangeRateService = ExchangeRateService(),
+            urlPreviewService = UrlPreviewService(),
+            backupManager = backupManagerOf(prefs),
+        )
+    }
 
     private fun screenshot(content: @androidx.compose.runtime.Composable () -> Unit) {
         val composeView = ComposeView(paparazzi.context).apply {

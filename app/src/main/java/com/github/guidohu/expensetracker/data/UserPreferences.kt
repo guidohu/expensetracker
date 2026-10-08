@@ -10,7 +10,7 @@ import java.util.Locale
  * rather than Jetpack DataStore — a single string and a boolean don't need a reactive-storage
  * library; the StateFlow here gives screens the reactivity they need.
  */
-class UserPreferences(context: Context) {
+class UserPreferences(context: Context) : BackupSettings {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     private val defaultCurrencyFallback: String =
@@ -91,6 +91,28 @@ class UserPreferences(context: Context) {
     fun completeOnboarding(currencyCode: String) {
         prefs.edit().putBoolean(KEY_ONBOARDED, true).apply()
         setDefaultCurrency(currencyCode)
+    }
+
+    /** The user-chosen settings worth carrying in a backup, as strings. Excludes transient bookkeeping (streak anchors). */
+    override fun exportBackupSettings(): Map<String, String> = buildMap {
+        put(KEY_CURRENCY, defaultCurrency.value)
+        monthlyBudget.value?.let { put(KEY_BUDGET, it.toString()) }
+        put(KEY_REMINDER_ENABLED, dailyReminderEnabled.value.toString())
+        put(KEY_REMINDER_HOUR, dailyReminderHour.value.toString())
+        put(KEY_REMINDER_MINUTE, dailyReminderMinute.value.toString())
+        put(KEY_BUDGET_CONGRATS_ENABLED, budgetCongratsEnabled.value.toString())
+    }
+
+    /** Applies settings from [exportBackupSettings]; unknown or malformed entries are skipped so an older/newer backup still restores. */
+    override fun restoreBackupSettings(settings: Map<String, String>) {
+        settings[KEY_CURRENCY]?.takeIf { it.isNotBlank() }?.let { setDefaultCurrency(it) }
+        // A backup without a budget means "no budget", so clear rather than keep the current one.
+        setMonthlyBudget(settings[KEY_BUDGET]?.toDoubleOrNull())
+        settings[KEY_REMINDER_ENABLED]?.toBooleanStrictOrNull()?.let { setDailyReminderEnabled(it) }
+        val hour = settings[KEY_REMINDER_HOUR]?.toIntOrNull()?.takeIf { it in 0..23 }
+        val minute = settings[KEY_REMINDER_MINUTE]?.toIntOrNull()?.takeIf { it in 0..59 }
+        if (hour != null && minute != null) setDailyReminderTime(hour, minute)
+        settings[KEY_BUDGET_CONGRATS_ENABLED]?.toBooleanStrictOrNull()?.let { setBudgetCongratsEnabled(it) }
     }
 
     companion object {

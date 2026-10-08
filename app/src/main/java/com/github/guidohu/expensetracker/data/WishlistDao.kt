@@ -12,6 +12,12 @@ interface WishlistDao {
     @Query("SELECT * FROM wishlist_items ORDER BY createdAt DESC, id DESC")
     fun getAll(): Flow<List<WishlistItem>>
 
+    @Query("SELECT * FROM wishlist_items ORDER BY id ASC")
+    suspend fun getAllOnce(): List<WishlistItem>
+
+    @Query("DELETE FROM wishlist_items")
+    suspend fun deleteAll()
+
     @Insert
     suspend fun insert(item: WishlistItem): Long
 

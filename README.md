@@ -6,6 +6,7 @@ A deliberately simple Android expense tracker: track categories, log expenses, s
 
 - **Categories** — create custom categories with a name and color (six sensible defaults are seeded on first run).
 - **Expenses** — log an amount, category, optional note, and date from a bottom sheet; swipe through the list, delete with a tap.
+- **Backup & restore** — Settings can export everything (expenses, categories, wishlist, settings) to a single `.zip` of CSV files and restore from one, replacing the current data.
 - **Stats** — this month vs. all-time totals, a donut chart of spending by category, and a 6-month bar chart trend.
 
 ## Stack

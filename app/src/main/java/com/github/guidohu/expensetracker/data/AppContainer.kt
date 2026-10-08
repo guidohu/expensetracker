@@ -7,4 +7,5 @@ data class AppContainer(
     val userPreferences: UserPreferences,
     val exchangeRateService: ExchangeRateService,
     val urlPreviewService: UrlPreviewService,
+    val backupManager: BackupManager,
 )

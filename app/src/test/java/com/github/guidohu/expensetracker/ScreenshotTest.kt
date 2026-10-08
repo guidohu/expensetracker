@@ -54,13 +54,16 @@ class ScreenshotTest {
         expenses: List<ExpenseWithCategory>,
         wishlistItems: List<WishlistItem> = emptyList(),
     ): AppContainer =
-        AppContainer(
-            repository = repositoryOf(categories, expenses),
-            wishlistRepository = wishlistRepositoryOf(wishlistItems),
-            userPreferences = UserPreferences(paparazzi.context),
-            exchangeRateService = ExchangeRateService(),
-            urlPreviewService = UrlPreviewService(),
-        )
+        UserPreferences(paparazzi.context).let { prefs ->
+            AppContainer(
+                repository = repositoryOf(categories, expenses),
+                wishlistRepository = wishlistRepositoryOf(wishlistItems),
+                userPreferences = prefs,
+                exchangeRateService = ExchangeRateService(),
+                urlPreviewService = UrlPreviewService(),
+                backupManager = backupManagerOf(prefs),
+            )
+        }
 
     private fun snapshot(
         darkTheme: Boolean = false,
