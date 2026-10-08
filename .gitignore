@@ -14,3 +14,4 @@ captures/
 *.aab
 /app/release/
 /app/debug/
+/debug_screenshots/

@@ -6,9 +6,17 @@ import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseRepository
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
+import com.github.guidohu.expensetracker.data.ListSection
 import com.github.guidohu.expensetracker.data.Mood
+import com.github.guidohu.expensetracker.data.SortField
 import com.github.guidohu.expensetracker.data.UserPreferences
+import com.github.guidohu.expensetracker.data.WishlistPriority
+import com.github.guidohu.expensetracker.data.defaultAscending
+import com.github.guidohu.expensetracker.data.flatSection
+import com.github.guidohu.expensetracker.data.groupedSections
 import com.github.guidohu.expensetracker.data.moodOrNull
+import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
+import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,17 +51,43 @@ class ExpensesViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    /** [expenses] filtered by [searchQuery] against title, notes, category name, and mood. */
-    val filteredExpenses: StateFlow<List<ExpenseWithCategory>> = combine(expenses, searchQuery) { items, query ->
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) return@combine items
-        items.filter { expense ->
-            expense.title.contains(trimmed, ignoreCase = true) ||
-                expense.notes.contains(trimmed, ignoreCase = true) ||
-                expense.categoryName.contains(trimmed, ignoreCase = true) ||
-                moodOrNull(expense.mood)?.label?.contains(trimmed, ignoreCase = true) == true
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _sortField = MutableStateFlow(SortField.DATE)
+    val sortField: StateFlow<SortField> = _sortField.asStateFlow()
+
+    private val _sortAscending = MutableStateFlow(SortField.DATE.defaultAscending())
+    val sortAscending: StateFlow<Boolean> = _sortAscending.asStateFlow()
+
+    /** Picking a different field restarts in that field's natural direction; re-picking the same one keeps it. */
+    fun setSortField(field: SortField) {
+        if (field == _sortField.value) return
+        _sortField.value = field
+        _sortAscending.value = field.defaultAscending()
+    }
+
+    fun setSortAscending(ascending: Boolean) {
+        _sortAscending.value = ascending
+    }
+
+    /**
+     * [expenses] filtered by [searchQuery] (title, notes, category name, mood), then laid out per
+     * [sortField]: Date / Category / Mood become headed groups (days, category names, moods — with
+     * the newest first inside each group), while Amount / Item name are one flat ordered list.
+     */
+    val sections: StateFlow<List<ListSection<ExpenseWithCategory>>> =
+        combine(expenses, searchQuery, sortField, sortAscending) { items, query, sort, ascending ->
+            val trimmed = query.trim()
+            val filtered = if (trimmed.isEmpty()) {
+                items
+            } else {
+                items.filter { expense ->
+                    expense.title.contains(trimmed, ignoreCase = true) ||
+                        expense.notes.contains(trimmed, ignoreCase = true) ||
+                        expense.categoryName.contains(trimmed, ignoreCase = true) ||
+                        moodOrNull(expense.mood)?.label?.contains(trimmed, ignoreCase = true) == true
+                }
+            }
+            layoutExpenseSections(filtered, sort, ascending)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -72,12 +106,15 @@ class ExpensesViewModel(
         notes: String,
         date: Long,
         mood: Mood?,
+        priority: WishlistPriority,
+        url: String?,
+        wishlistAddedAt: Long? = null,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
             _isSaving.value = true
             val rate = resolveExchangeRate(currencyCode, date)
-            repository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
+            repository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood, priority, url, wishlistAddedAt)
             _isSaving.value = false
             onComplete()
         }
@@ -94,12 +131,15 @@ class ExpensesViewModel(
         notes: String,
         date: Long,
         mood: Mood?,
+        priority: WishlistPriority,
+        url: String?,
+        wishlistAddedAt: Long? = null,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
             _isSaving.value = true
             val rate = resolveExchangeRate(currencyCode, date)
-            repository.updateExpense(id, amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
+            repository.updateExpense(id, amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood, priority, url, wishlistAddedAt)
             _isSaving.value = false
             onComplete()
         }
@@ -133,7 +173,63 @@ class ExpensesViewModel(
                 notes = expense.notes,
                 date = expense.date,
                 mood = moodOrNull(expense.mood),
+                priority = wishlistPriorityOrDefault(expense.priority),
+                url = expense.url,
+                wishlistAddedAt = expense.wishlistAddedAt,
             )
         }
+    }
+
+    /** Bulk delete for multi-select. */
+    fun deleteExpenses(items: List<ExpenseWithCategory>) {
+        viewModelScope.launch {
+            items.forEach { repository.deleteExpense(it) }
+        }
+    }
+
+    /** Bulk Undo for [deleteExpenses]. */
+    fun restoreExpenses(items: List<ExpenseWithCategory>) {
+        items.forEach { restoreExpense(it) }
+    }
+}
+
+/** Lays [filtered] out as headed groups (Date / Category / Mood) or one flat list (Amount / Item name). */
+internal fun layoutExpenseSections(
+    filtered: List<ExpenseWithCategory>,
+    sort: SortField,
+    ascending: Boolean,
+): List<ListSection<ExpenseWithCategory>> {
+    val newestFirst = compareByDescending<ExpenseWithCategory> { it.date }.thenByDescending { it.id }
+    return when (sort) {
+        SortField.DATE -> groupedSections(
+            filtered, ascending,
+            groupKey = { it.date },
+            header = { formatEpochDayRelative(it) },
+            keyComparator = naturalOrder(),
+            within = newestFirst,
+        )
+        SortField.CATEGORY -> groupedSections(
+            filtered, ascending,
+            groupKey = { it.categoryName },
+            header = { it },
+            keyComparator = String.CASE_INSENSITIVE_ORDER,
+            within = newestFirst,
+        )
+        SortField.MOOD -> groupedSections(
+            filtered, ascending,
+            groupKey = { it.mood.orEmpty() },
+            header = { moodOrNull(it)?.let { mood -> "${mood.emoji} ${mood.label}" } ?: "No mood" },
+            keyComparator = compareBy { moodOrNull(it)?.label.orEmpty().lowercase() },
+            within = newestFirst,
+            pinLast = { moodOrNull(it) == null },
+        )
+        SortField.AMOUNT -> flatSection(
+            filtered, ascending,
+            compareBy<ExpenseWithCategory> { it.amountInDefaultCurrency }.thenByDescending { it.date },
+        )
+        SortField.NAME -> flatSection(
+            filtered, ascending,
+            compareBy<ExpenseWithCategory> { it.title.lowercase() }.thenByDescending { it.date },
+        )
     }
 }

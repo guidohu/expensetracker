@@ -1,33 +1,31 @@
 package com.github.guidohu.expensetracker.ui.wishlist
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Receipt
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CreditCard
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -40,7 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -49,12 +47,14 @@ import com.github.guidohu.expensetracker.data.Mood
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.WishlistPriority
 import com.github.guidohu.expensetracker.data.moodOrNull
-import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
+import com.github.guidohu.expensetracker.ui.components.AmountCurrencyField
+import com.github.guidohu.expensetracker.ui.components.CategoryPicker
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
 import com.github.guidohu.expensetracker.ui.components.MoodPicker
+import com.github.guidohu.expensetracker.ui.components.PriorityPicker
 import com.github.guidohu.expensetracker.ui.theme.AppCard
-import com.github.guidohu.expensetracker.util.currencySymbol
+import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +68,7 @@ fun AddWishlistSheet(
     initialUrl: String? = null,
     onDismiss: () -> Unit,
     onMoveToExpense: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
     onConfirm: (
         title: String,
         price: Double?,
@@ -107,6 +108,8 @@ fun AddWishlistSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 12.dp),
         ) {
@@ -119,97 +122,33 @@ fun AddWishlistSheet(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("What") },
+                label = { Text("Item") },
                 placeholder = { Text("e.g. Noise-cancelling headphones") },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(top = 16.dp),
-            ) {
-                OutlinedTextField(
-                    value = priceText,
-                    onValueChange = { input -> if (input.count { it == '.' } <= 1) priceText = input },
-                    label = { Text("Price (optional)") },
-                    leadingIcon = { Text(currencySymbol(currencyCode), style = MaterialTheme.typography.headlineSmall) },
-                    textStyle = MaterialTheme.typography.headlineSmall,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.weight(1f),
-                )
-                AssistChip(
-                    onClick = { showCurrencyPicker = true },
-                    label = { Text(currencyCode) },
-                    modifier = Modifier.padding(start = 10.dp),
-                )
-            }
-
-            Text(
-                "Priority",
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                WishlistPriority.entries.forEach { option ->
-                    FilterChip(
-                        selected = priority == option,
-                        onClick = { priority = option },
-                        label = { Text(option.label) },
-                    )
-                }
-            }
-
-            if (categories.isNotEmpty()) {
-                Text(
-                    "Category (optional)",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(categories, key = { it.id }) { category ->
-                        FilterChip(
-                            selected = category.id == selectedCategoryId,
-                            onClick = {
-                                selectedCategoryId = if (selectedCategoryId == category.id) null else category.id
-                            },
-                            leadingIcon = {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(category.color.toComposeColor())
-                                )
-                            },
-                            label = { Text(category.name) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = category.color.toComposeColor().copy(alpha = 0.22f),
-                            ),
-                        )
-                    }
-                }
-            }
-
-            OutlinedTextField(
-                value = urlText,
-                onValueChange = { urlText = it; onUrlChanged(it) },
-                label = { Text("Link (optional)") },
-                placeholder = { Text("https://…") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+            AmountCurrencyField(
+                amountText = priceText,
+                onAmountChange = { input -> if (input.count { it == '.' } <= 1) priceText = input },
+                currencyCode = currencyCode,
+                onCurrencyClick = { showCurrencyPicker = true },
+                label = "Amount (optional)",
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             )
 
-            LinkPreviewCard(previewState, modifier = Modifier.padding(top = 10.dp))
+            CategoryPicker(
+                categories = categories,
+                selectedCategoryId = selectedCategoryId,
+                onCategorySelect = { selectedCategoryId = it },
+                modifier = Modifier.padding(top = 20.dp),
+            )
 
-            OutlinedTextField(
-                value = note,
-                onValueChange = { note = it },
-                label = { Text("Note (optional)") },
-                placeholder = { Text("Any extra detail") },
-                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+            PriorityPicker(
+                priority = priority,
+                onSelect = { priority = it },
+                modifier = Modifier.padding(top = 20.dp),
             )
 
             Text(
@@ -219,6 +158,51 @@ fun AddWishlistSheet(
                 modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
             )
             MoodPicker(selected = selectedMood, onSelect = { selectedMood = it })
+
+            OutlinedTextField(
+                value = note,
+                onValueChange = { note = it },
+                label = { Text("Notes (optional)") },
+                placeholder = { Text("Any extra detail") },
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+            )
+
+            OutlinedTextField(
+                value = urlText,
+                onValueChange = { urlText = it; onUrlChanged(it) },
+                label = { Text("URL (optional)") },
+                placeholder = { Text("https://…") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+            )
+
+            LinkPreviewCard(previewState, modifier = Modifier.padding(top = 10.dp))
+
+            if (existing != null) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Text(
+                            "Added to wishlist ${formatEpochDayRelative(existing.createdAt)}",
+                            modifier = Modifier.padding(start = 12.dp),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+            }
 
             Button(
                 onClick = {
@@ -253,8 +237,22 @@ fun AddWishlistSheet(
                     enabled = !isSaving,
                     modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                 ) {
-                    Icon(Icons.Filled.Receipt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Filled.CreditCard, contentDescription = null, modifier = Modifier.size(18.dp))
                     Text("Move to expense", modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+
+            if (existing != null && onDelete != null) {
+                OutlinedButton(
+                    onClick = onDelete,
+                    enabled = !isSaving,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error,
+                    ),
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Delete", modifier = Modifier.padding(start = 8.dp))
                 }
             }
         }

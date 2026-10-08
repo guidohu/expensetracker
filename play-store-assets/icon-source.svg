@@ -1,5 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
-  <rect x="0" y="0" width="108" height="108" fill="#1B5E20"/>
-  <path fill="#FFFFFF" d="M33,36 L75,36 A7,7 0 0 1 82,43 L82,69 A7,7 0 0 1 75,76 L33,76 A7,7 0 0 1 26,69 L26,43 A7,7 0 0 1 33,36 Z"/>
-  <path fill="#1B5E20" d="M26,46 L82,46 L82,54 L26,54 Z M36,66 L43,66 L43,72 L36,72 Z M46,62 L53,62 L53,72 L46,72 Z M56,58 L63,58 L63,72 L56,72 Z M66,54 L73,54 L73,72 L66,72 Z"/>
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#26D9E8"/>
+      <stop offset="55%" stop-color="#0891B2"/>
+      <stop offset="100%" stop-color="#0B6479"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#DFF6FA"/>
+    </linearGradient>
+    <linearGradient id="bars" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0B6479"/>
+      <stop offset="100%" stop-color="#139AB0"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="108" height="108" fill="url(#bg)"/>
+  <path fill="url(#card)" d="M33,36 L75,36 A7,7 0 0 1 82,43 L82,69 A7,7 0 0 1 75,76 L33,76 A7,7 0 0 1 26,69 L26,43 A7,7 0 0 1 33,36 Z"/>
+  <path fill="url(#bars)" d="M26,46 L82,46 L82,54 L26,54 Z M36,66 L43,66 L43,72 L36,72 Z M46,62 L53,62 L53,72 L46,72 Z M56,58 L63,58 L63,72 L56,72 Z M66,54 L73,54 L73,72 L66,72 Z"/>
+  <path fill="url(#gloss)" d="M33,36 L75,36 A7,7 0 0 1 82,43 L82,46 L26,46 L26,43 A7,7 0 0 1 33,36 Z"/>
 </svg>

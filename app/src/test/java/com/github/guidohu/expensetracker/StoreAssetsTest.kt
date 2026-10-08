@@ -132,7 +132,7 @@ class StoreAssetsTest {
     fun icon_playStore() {
         val composeView = ComposeView(paparazzi.context).apply {
             setContent {
-                Box(modifier = Modifier.fillMaxSize().background(Color(0xFF1B5E20))) {
+                Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0B6479))) {
                     Image(
                         painter = painterResource(id = R.drawable.ic_launcher_foreground),
                         contentDescription = null,

@@ -5,13 +5,18 @@ import androidx.lifecycle.viewModelScope
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseRepository
+import com.github.guidohu.expensetracker.data.ListSection
 import com.github.guidohu.expensetracker.data.Mood
+import com.github.guidohu.expensetracker.data.SortField
 import com.github.guidohu.expensetracker.data.UrlPreview
 import com.github.guidohu.expensetracker.data.UrlPreviewService
 import com.github.guidohu.expensetracker.data.UserPreferences
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.WishlistPriority
 import com.github.guidohu.expensetracker.data.WishlistRepository
+import com.github.guidohu.expensetracker.data.defaultAscending
+import com.github.guidohu.expensetracker.data.flatSection
+import com.github.guidohu.expensetracker.data.groupedSections
 import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
 import kotlinx.coroutines.Job
@@ -58,22 +63,48 @@ class WishlistViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _sortField = MutableStateFlow(SortField.DATE)
+    val sortField: StateFlow<SortField> = _sortField.asStateFlow()
+
+    private val _sortAscending = MutableStateFlow(SortField.DATE.defaultAscending())
+    val sortAscending: StateFlow<Boolean> = _sortAscending.asStateFlow()
+
+    /** Picking a different field restarts in that field's natural direction; re-picking the same one keeps it. */
+    fun setSortField(field: SortField) {
+        if (field == _sortField.value) return
+        _sortField.value = field
+        _sortAscending.value = field.defaultAscending()
+    }
+
+    fun setSortAscending(ascending: Boolean) {
+        _sortAscending.value = ascending
+    }
+
     private val _events = Channel<String>(Channel.BUFFERED)
     /** One-shot UI messages (snackbar text) — e.g. when an exchange-rate lookup fails. */
     val events: Flow<String> = _events.receiveAsFlow()
 
-    /** [items] filtered by [searchQuery] against title, note, link preview title, mood, and priority. */
-    val filteredItems: StateFlow<List<WishlistItem>> = combine(items, searchQuery) { list, query ->
-        val trimmed = query.trim()
-        if (trimmed.isEmpty()) return@combine list
-        list.filter { item ->
-            item.title.contains(trimmed, ignoreCase = true) ||
-                item.note.contains(trimmed, ignoreCase = true) ||
-                item.previewTitle?.contains(trimmed, ignoreCase = true) == true ||
-                moodOrNull(item.mood)?.label?.contains(trimmed, ignoreCase = true) == true ||
-                wishlistPriorityOrDefault(item.priority).label.contains(trimmed, ignoreCase = true)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    /**
+     * [items] filtered by [searchQuery] (title, note, link preview title, mood, priority), then laid
+     * out per [sortField]: Category / Mood become headed groups (newest first inside each), while
+     * Date added / Amount / Item name are one flat ordered list.
+     */
+    val sections: StateFlow<List<ListSection<WishlistItem>>> =
+        combine(items, searchQuery, sortField, sortAscending, categories) { list, query, sort, ascending, cats ->
+            val trimmed = query.trim()
+            val filtered = if (trimmed.isEmpty()) {
+                list
+            } else {
+                list.filter { item ->
+                    item.title.contains(trimmed, ignoreCase = true) ||
+                        item.note.contains(trimmed, ignoreCase = true) ||
+                        item.previewTitle?.contains(trimmed, ignoreCase = true) == true ||
+                        moodOrNull(item.mood)?.label?.contains(trimmed, ignoreCase = true) == true ||
+                        wishlistPriorityOrDefault(item.priority).label.contains(trimmed, ignoreCase = true)
+                }
+            }
+            layoutWishlistSections(filtered, sort, ascending, cats)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -201,9 +232,22 @@ class WishlistViewModel(
         }
     }
 
+    /** Bulk delete for multi-select. */
+    fun deleteItems(items: List<WishlistItem>) {
+        viewModelScope.launch {
+            items.forEach { repository.deleteItem(it) }
+        }
+    }
+
+    /** Bulk Undo for [deleteItems]. */
+    fun restoreItems(items: List<WishlistItem>) {
+        items.forEach { restoreItem(it) }
+    }
+
     /** Turns a wishlist entry into a real expense — looking up the exchange rate like
      * [com.github.guidohu.expensetracker.ui.expenses.ExpensesViewModel.addExpense] does — then
-     * removes it from the wishlist. */
+     * removes it from the wishlist. Carries over [priority] and [url] and stamps the new expense's
+     * [com.github.guidohu.expensetracker.data.Expense.wishlistAddedAt] with the item's original add date. */
     fun moveToExpense(
         item: WishlistItem,
         amount: Double,
@@ -213,6 +257,8 @@ class WishlistViewModel(
         notes: String,
         date: Long,
         mood: Mood?,
+        priority: WishlistPriority,
+        url: String?,
         onComplete: () -> Unit,
     ) {
         viewModelScope.launch {
@@ -225,11 +271,61 @@ class WishlistViewModel(
                 if (fetched == null) _events.send("Couldn't look up the exchange rate — saved at a 1:1 rate for now.")
                 fetched ?: 1.0
             }
-            expenseRepository.addExpense(amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood)
+            expenseRepository.addExpense(
+                amount, currencyCode, rate, categoryId, title.trim(), notes.trim(), date, mood,
+                priority, url, wishlistAddedAt = item.createdAt,
+            )
             repository.deleteItem(item)
             _isSaving.value = false
             onComplete()
         }
+    }
+}
+
+/** Lays [filtered] out as headed groups (Category / Mood) or one flat list (Date added / Amount / Item name). */
+internal fun layoutWishlistSections(
+    filtered: List<WishlistItem>,
+    sort: SortField,
+    ascending: Boolean,
+    cats: List<Category>,
+): List<ListSection<WishlistItem>> {
+    val newestFirst = compareByDescending<WishlistItem> { it.createdAt }.thenByDescending { it.id }
+    return when (sort) {
+        SortField.DATE -> flatSection(
+            filtered, ascending,
+            compareBy<WishlistItem> { it.createdAt }.thenBy { it.id },
+        )
+        SortField.CATEGORY -> groupedSections(
+            filtered, ascending,
+            groupKey = { item -> cats.firstOrNull { it.id == item.categoryId }?.name.orEmpty() },
+            header = { it.ifEmpty { "No category" } },
+            keyComparator = String.CASE_INSENSITIVE_ORDER,
+            within = newestFirst,
+            pinLast = { it.isEmpty() },
+        )
+        SortField.MOOD -> groupedSections(
+            filtered, ascending,
+            groupKey = { it.mood.orEmpty() },
+            header = { moodOrNull(it)?.let { mood -> "${mood.emoji} ${mood.label}" } ?: "No mood" },
+            keyComparator = compareBy { moodOrNull(it)?.label.orEmpty().lowercase() },
+            within = newestFirst,
+            pinLast = { moodOrNull(it) == null },
+        )
+        SortField.AMOUNT -> {
+            // Unpriced items have no amount to order by, so they trail the list in either direction.
+            val priced = flatSection(
+                filtered.filter { it.price != null }, ascending,
+                compareBy<WishlistItem> { it.price }.thenByDescending { it.createdAt },
+            )
+            val unpriced = filtered.filter { it.price == null }.sortedWith(newestFirst)
+            if (unpriced.isEmpty()) priced else listOf(
+                ListSection("all", null, priced.flatMap { it.items } + unpriced),
+            )
+        }
+        SortField.NAME -> flatSection(
+            filtered, ascending,
+            compareBy<WishlistItem> { it.title.lowercase() }.thenByDescending { it.createdAt },
+        )
     }
 }
 

@@ -124,13 +124,18 @@ internal fun CurrencyStep(
         ) {
             LazyColumn {
                 items(filtered, key = { it.code }) { currency ->
-                    CurrencyOptionRow(currency, selected = currency.code == selected, onClick = { onSelect(currency.code) })
+                    CurrencyOptionRow(
+                        currency,
+                        selected = currency.code == selected,
+                        onClick = {
+                            // Tapping a currency picks it immediately — no separate confirm step.
+                            onSelect(currency.code)
+                            onFinish()
+                        },
+                    )
                     if (currency != filtered.last()) HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
             }
-        }
-        Button(onClick = onFinish, modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-            Text("Finish")
         }
     }
 }

@@ -33,6 +33,11 @@ data class Expense(
     val date: Long,
     /** [Mood.name], or null if not set. */
     val mood: String? = null,
+    /** [WishlistPriority.name] — whether this was a need or a want. */
+    val priority: String = WishlistPriority.WANT.name,
+    val url: String? = null,
+    /** Epoch day this expense's source wishlist item was originally added, or null if entered directly. */
+    val wishlistAddedAt: Long? = null,
 )
 
 /** Expense joined with its category's display info, for list rows. */
@@ -48,6 +53,9 @@ data class ExpenseWithCategory(
     val categoryName: String,
     val categoryColor: Int,
     val mood: String? = null,
+    val priority: String = WishlistPriority.WANT.name,
+    val url: String? = null,
+    val wishlistAddedAt: Long? = null,
 ) {
     /** The value of this expense normalized into the default currency active when it was entered. */
     val amountInDefaultCurrency: Double get() = amount * exchangeRate

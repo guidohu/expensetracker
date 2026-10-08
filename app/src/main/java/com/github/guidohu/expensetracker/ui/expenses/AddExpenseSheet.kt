@@ -1,32 +1,29 @@
 package com.github.guidohu.expensetracker.ui.expenses
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,18 +38,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import com.github.guidohu.expensetracker.data.Category
 import com.github.guidohu.expensetracker.data.ExpenseWithCategory
 import com.github.guidohu.expensetracker.data.Mood
+import com.github.guidohu.expensetracker.data.WishlistPriority
 import com.github.guidohu.expensetracker.data.moodOrNull
-import com.github.guidohu.expensetracker.data.toComposeColor
+import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
+import com.github.guidohu.expensetracker.ui.components.AmountCurrencyField
+import com.github.guidohu.expensetracker.ui.components.CategoryPicker
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
 import com.github.guidohu.expensetracker.ui.components.MoodPicker
-import com.github.guidohu.expensetracker.util.currencySymbol
+import com.github.guidohu.expensetracker.ui.components.PriorityPicker
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
 import java.time.Instant
 import java.time.LocalDate
@@ -66,6 +65,9 @@ data class ExpensePrefill(
     val title: String,
     val notes: String,
     val mood: Mood?,
+    val priority: WishlistPriority = WishlistPriority.WANT,
+    val url: String? = null,
+    val wishlistAddedAt: Long? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,7 +79,18 @@ fun AddExpenseSheet(
     existing: ExpenseWithCategory? = null,
     prefill: ExpensePrefill? = null,
     onDismiss: () -> Unit,
-    onConfirm: (amount: Double, currencyCode: String, categoryId: Long, title: String, notes: String, date: Long, mood: Mood?) -> Unit,
+    onDelete: (() -> Unit)? = null,
+    onConfirm: (
+        amount: Double,
+        currencyCode: String,
+        categoryId: Long,
+        title: String,
+        notes: String,
+        date: Long,
+        mood: Mood?,
+        priority: WishlistPriority,
+        url: String?,
+    ) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState()
     var amountText by rememberSaveable {
@@ -91,6 +104,17 @@ fun AddExpenseSheet(
     }
     var selectedDate by rememberSaveable { mutableStateOf(existing?.date ?: LocalDate.now().toEpochDay()) }
     var selectedMood by rememberSaveable { mutableStateOf(moodOrNull(existing?.mood) ?: prefill?.mood) }
+    var priority by rememberSaveable {
+        mutableStateOf(
+            when {
+                existing != null -> wishlistPriorityOrDefault(existing.priority)
+                prefill != null -> prefill.priority
+                else -> WishlistPriority.WANT
+            }
+        )
+    }
+    var urlText by rememberSaveable { mutableStateOf(existing?.url ?: prefill?.url ?: "") }
+    val wishlistAddedAt = existing?.wishlistAddedAt ?: prefill?.wishlistAddedAt
     var showDatePicker by remember { mutableStateOf(false) }
     var showCurrencyPicker by remember { mutableStateOf(false) }
 
@@ -109,18 +133,25 @@ fun AddExpenseSheet(
             categories = categories,
             selectedCategoryId = selectedCategoryId,
             onCategorySelect = { selectedCategoryId = it },
+            priority = priority,
+            onPrioritySelect = { priority = it },
             notes = notes,
             onNotesChange = { notes = it },
             selectedDate = selectedDate,
             onDateClick = { showDatePicker = true },
             selectedMood = selectedMood,
             onMoodSelect = { selectedMood = it },
+            urlText = urlText,
+            onUrlChange = { urlText = it },
+            wishlistAddedAt = wishlistAddedAt,
             isValid = isValid,
             isSaving = isSaving,
+            onDelete = onDelete,
             onSave = {
                 onConfirm(
                     requireNotNull(amountValue), currencyCode, requireNotNull(selectedCategoryId),
                     title.trim(), notes.trim(), selectedDate, selectedMood,
+                    priority, urlText.trim().takeIf { it.isNotBlank() },
                 )
             },
         )
@@ -177,21 +208,29 @@ fun AddExpenseSheetContent(
     onTitleChange: (String) -> Unit,
     categories: List<Category>,
     selectedCategoryId: Long?,
-    onCategorySelect: (Long) -> Unit,
+    onCategorySelect: (Long?) -> Unit,
+    priority: WishlistPriority = WishlistPriority.WANT,
+    onPrioritySelect: (WishlistPriority) -> Unit = {},
     notes: String,
     onNotesChange: (String) -> Unit,
     selectedDate: Long,
     onDateClick: () -> Unit,
     selectedMood: Mood? = null,
     onMoodSelect: (Mood?) -> Unit = {},
+    urlText: String = "",
+    onUrlChange: (String) -> Unit = {},
+    wishlistAddedAt: Long? = null,
     isValid: Boolean,
     isSaving: Boolean,
+    onDelete: (() -> Unit)? = null,
     onSave: () -> Unit,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
+            .imePadding()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 20.dp)
             .padding(bottom = 12.dp),
     ) {
@@ -201,98 +240,43 @@ fun AddExpenseSheetContent(
             fontWeight = FontWeight.SemiBold,
         )
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
+        DateRow(
+            label = formatEpochDayRelative(selectedDate),
+            onClick = onDateClick,
             modifier = Modifier.padding(top = 16.dp),
-        ) {
-            OutlinedTextField(
-                value = amountText,
-                onValueChange = onAmountChange,
-                label = { Text("Amount") },
-                leadingIcon = { Text(currencySymbol(currencyCode), style = MaterialTheme.typography.headlineSmall) },
-                textStyle = MaterialTheme.typography.headlineSmall,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            AssistChip(
-                onClick = onCurrencyClick,
-                label = { Text(currencyCode) },
-                modifier = Modifier.padding(start = 10.dp),
-            )
-        }
+        )
 
         OutlinedTextField(
             value = title,
             onValueChange = onTitleChange,
-            label = { Text("What") },
+            label = { Text("Item") },
             placeholder = { Text("e.g. Socks") },
             singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
         )
 
-        Text(
-            "Category",
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
-        )
-        if (categories.isEmpty()) {
-            Text("Add a category first from the Categories tab.")
-        } else {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories, key = { it.id }) { category ->
-                    FilterChip(
-                        selected = category.id == selectedCategoryId,
-                        onClick = { onCategorySelect(category.id) },
-                        leadingIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(category.color.toComposeColor())
-                            )
-                        },
-                        label = { Text(category.name) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = category.color.toComposeColor().copy(alpha = 0.22f),
-                        ),
-                    )
-                }
-            }
-        }
-
-        OutlinedTextField(
-            value = notes,
-            onValueChange = onNotesChange,
-            label = { Text("Notes (optional)") },
-            placeholder = { Text("Any extra detail") },
-            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
-        )
-
-        Surface(
-            onClick = onDateClick,
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
+        AmountCurrencyField(
+            amountText = amountText,
+            onAmountChange = onAmountChange,
+            currencyCode = currencyCode,
+            onCurrencyClick = onCurrencyClick,
+            label = "Amount",
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            ) {
-                Icon(
-                    Icons.Filled.CalendarMonth,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp),
-                )
-                Text(
-                    formatEpochDayRelative(selectedDate),
-                    modifier = Modifier.padding(start = 12.dp),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-        }
+        )
+
+        CategoryPicker(
+            categories = categories,
+            selectedCategoryId = selectedCategoryId,
+            onCategorySelect = onCategorySelect,
+            modifier = Modifier.padding(top = 20.dp),
+        )
+
+        PriorityPicker(
+            priority = priority,
+            onSelect = onPrioritySelect,
+            modifier = Modifier.padding(top = 20.dp),
+        )
 
         Text(
             "Mood (optional)",
@@ -301,6 +285,32 @@ fun AddExpenseSheetContent(
             modifier = Modifier.padding(top = 20.dp, bottom = 10.dp),
         )
         MoodPicker(selected = selectedMood, onSelect = onMoodSelect)
+
+        OutlinedTextField(
+            value = notes,
+            onValueChange = onNotesChange,
+            label = { Text("Notes (optional)") },
+            placeholder = { Text("Any extra detail") },
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+        )
+
+        OutlinedTextField(
+            value = urlText,
+            onValueChange = onUrlChange,
+            label = { Text("URL (optional)") },
+            placeholder = { Text("https://…") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
+        )
+
+        if (wishlistAddedAt != null) {
+            DateRow(
+                label = "Added to wishlist ${formatEpochDayRelative(wishlistAddedAt)}",
+                onClick = null,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
 
         Button(
             onClick = onSave,
@@ -316,6 +326,48 @@ fun AddExpenseSheetContent(
             } else {
                 Text(if (isEditing) "Save changes" else "Save expense")
             }
+        }
+
+        if (isEditing && onDelete != null) {
+            OutlinedButton(
+                onClick = onDelete,
+                enabled = !isSaving,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                Text("Delete", modifier = Modifier.padding(start = 8.dp))
+            }
+        }
+    }
+}
+
+/** A calendar-icon row used for both the (editable) Date field and the read-only "Added to wishlist on" field. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DateRow(label: String, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Surface(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        ) {
+            Icon(
+                Icons.Filled.CalendarMonth,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp),
+            )
+            Text(
+                label,
+                modifier = Modifier.padding(start = 12.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
         }
     }
 }

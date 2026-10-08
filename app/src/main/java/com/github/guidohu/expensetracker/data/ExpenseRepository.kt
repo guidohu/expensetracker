@@ -28,6 +28,9 @@ class ExpenseRepository(
         notes: String,
         date: Long,
         mood: Mood?,
+        priority: WishlistPriority = WishlistPriority.WANT,
+        url: String? = null,
+        wishlistAddedAt: Long? = null,
     ): Long = expenseDao.insert(
         Expense(
             amount = amount,
@@ -38,6 +41,9 @@ class ExpenseRepository(
             notes = notes,
             date = date,
             mood = mood?.name,
+            priority = priority.name,
+            url = url,
+            wishlistAddedAt = wishlistAddedAt,
         )
     )
 
@@ -51,6 +57,9 @@ class ExpenseRepository(
         notes: String,
         date: Long,
         mood: Mood?,
+        priority: WishlistPriority = WishlistPriority.WANT,
+        url: String? = null,
+        wishlistAddedAt: Long? = null,
     ) = expenseDao.update(
         Expense(
             id = id,
@@ -62,6 +71,9 @@ class ExpenseRepository(
             notes = notes,
             date = date,
             mood = mood?.name,
+            priority = priority.name,
+            url = url,
+            wishlistAddedAt = wishlistAddedAt,
         )
     )
 
@@ -76,6 +88,9 @@ class ExpenseRepository(
             notes = expense.notes,
             date = expense.date,
             mood = expense.mood,
+            priority = expense.priority,
+            url = expense.url,
+            wishlistAddedAt = expense.wishlistAddedAt,
         )
     )
 

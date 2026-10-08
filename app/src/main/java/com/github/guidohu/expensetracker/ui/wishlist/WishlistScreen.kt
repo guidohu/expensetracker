@@ -16,8 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Link
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -31,6 +33,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,12 +53,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.Category
+import com.github.guidohu.expensetracker.data.SortField
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.wishlistPriorityOrDefault
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.ui.components.SearchableTopAppBar
+import com.github.guidohu.expensetracker.ui.components.SelectionTopAppBar
+import com.github.guidohu.expensetracker.ui.components.SwipeActionRow
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheet
 import com.github.guidohu.expensetracker.ui.expenses.ExpensePrefill
 import com.github.guidohu.expensetracker.ui.theme.AppCard
@@ -81,17 +87,25 @@ fun WishlistScreen(
         }
     )
     val allItems by viewModel.items.collectAsState()
-    val items by viewModel.filteredItems.collectAsState()
+    val sections by viewModel.sections.collectAsState()
+    val items = remember(sections) { sections.flatMap { it.items } }
     val categories by viewModel.categories.collectAsState()
     val defaultCurrency by viewModel.defaultCurrency.collectAsState()
     val isSaving by viewModel.isSaving.collectAsState()
     val previewState by viewModel.previewState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val sortField by viewModel.sortField.collectAsState()
+    val sortAscending by viewModel.sortAscending.collectAsState()
     var isSearching by rememberSaveable { mutableStateOf(false) }
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
     var addSheetInitialUrl by rememberSaveable { mutableStateOf<String?>(null) }
     var editingItem by remember { mutableStateOf<WishlistItem?>(null) }
-    var itemToMoveToExpense by remember { mutableStateOf<WishlistItem?>(null) }
+    var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
+    var revealedId by remember { mutableStateOf<Long?>(null) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
+    // The remaining wishlist items to walk through — "Make Expense" (single or bulk) pushes a
+    // one-or-more queue; one AddExpenseSheet is shown per item, advancing on save and clearing on dismiss.
+    var makeExpenseQueue by remember { mutableStateOf<List<WishlistItem>>(emptyList()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
@@ -113,13 +127,35 @@ fun WishlistScreen(
 
     Scaffold(
         topBar = {
-            SearchableTopAppBar(
-                title = "Wishlist",
-                isSearching = isSearching,
-                query = searchQuery,
-                onQueryChange = viewModel::setSearchQuery,
-                onSearchToggle = { isSearching = it },
-            )
+            if (selectedIds.isNotEmpty()) {
+                SelectionTopAppBar(
+                    selectedCount = selectedIds.size,
+                    onCancel = { selectedIds = emptySet() },
+                ) {
+                    IconButton(onClick = {
+                        makeExpenseQueue = allItems.filter { it.id in selectedIds }
+                        selectedIds = emptySet()
+                    }) {
+                        Icon(Icons.Filled.CreditCard, contentDescription = "Move to expense")
+                    }
+                    IconButton(onClick = { showBulkDeleteConfirm = true }) {
+                        Icon(Icons.Filled.Delete, contentDescription = "Delete from Wishlist")
+                    }
+                }
+            } else {
+                SearchableTopAppBar(
+                    title = "Wishlist",
+                    isSearching = isSearching,
+                    query = searchQuery,
+                    onQueryChange = viewModel::setSearchQuery,
+                    onSearchToggle = { isSearching = it },
+                    sortField = sortField,
+                    onSortFieldSelect = viewModel::setSortField,
+                    sortAscending = sortAscending,
+                    onSortAscendingChange = viewModel::setSortAscending,
+                    sortLabel = ::wishlistSortLabel,
+                )
+            }
         },
         snackbarHost = {
             SnackbarHost(snackbarHostState) { data ->
@@ -131,12 +167,14 @@ fun WishlistScreen(
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                addSheetInitialUrl = null
-                viewModel.seedExistingPreview(null)
-                showAddSheet = true
-            }) {
-                Icon(Icons.Filled.Add, contentDescription = "Add wishlist item")
+            if (selectedIds.isEmpty()) {
+                FloatingActionButton(onClick = {
+                    addSheetInitialUrl = null
+                    viewModel.seedExistingPreview(null)
+                    showAddSheet = true
+                }) {
+                    Icon(Icons.Filled.Add, contentDescription = "Add wishlist item")
+                }
             }
         }
     ) { padding ->
@@ -164,29 +202,53 @@ fun WishlistScreen(
                     bottom = 96.dp,
                 ),
             ) {
-                items(items, key = { it.id }) { item ->
-                    WishlistRow(
-                        item = item,
-                        defaultCurrency = defaultCurrency,
-                        category = categories.firstOrNull { it.id == item.categoryId },
-                        onClick = {
-                            viewModel.seedExistingPreview(item)
-                            editingItem = item
-                        },
-                        onDelete = {
-                            viewModel.deleteItem(item)
-                            coroutineScope.launch {
-                                val result = snackbarHostState.showSnackbar(
-                                    message = "Deleted ${item.title}",
-                                    actionLabel = "Undo",
-                                    duration = SnackbarDuration.Short,
-                                )
-                                if (result == SnackbarResult.ActionPerformed) {
-                                    viewModel.restoreItem(item)
+                sections.forEach { section ->
+                    section.header?.let { header ->
+                        item(key = "header_${section.key}") {
+                            Text(
+                                text = header,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            )
+                        }
+                    }
+                    items(section.items, key = { it.id }) { item ->
+                        SwipeActionRow(
+                            isSelected = item.id in selectedIds,
+                            selectionModeActive = selectedIds.isNotEmpty(),
+                            isRevealed = revealedId == item.id,
+                            onRevealedChange = { revealed -> revealedId = if (revealed) item.id else null },
+                            onTap = {
+                                viewModel.seedExistingPreview(item)
+                                editingItem = item
+                            },
+                            onToggleSelect = {
+                                selectedIds = if (item.id in selectedIds) selectedIds - item.id else selectedIds + item.id
+                            },
+                            onSwipeLeftDelete = {
+                                revealedId = null
+                                viewModel.deleteItem(item)
+                                coroutineScope.launch {
+                                    val result = snackbarHostState.showSnackbar(
+                                        message = "Deleted ${item.title}",
+                                        actionLabel = "Undo",
+                                        duration = SnackbarDuration.Short,
+                                    )
+                                    if (result == SnackbarResult.ActionPerformed) {
+                                        viewModel.restoreItem(item)
+                                    }
                                 }
-                            }
-                        },
-                    )
+                            },
+                        ) {
+                            WishlistRow(
+                                item = item,
+                                defaultCurrency = defaultCurrency,
+                                category = categories.firstOrNull { it.id == item.categoryId },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -220,7 +282,22 @@ fun WishlistScreen(
             onDismiss = { editingItem = null },
             onMoveToExpense = {
                 editingItem = null
-                itemToMoveToExpense = item
+                makeExpenseQueue = listOf(item)
+            },
+            onDelete = {
+                editingItem = null
+                revealedId = null
+                viewModel.deleteItem(item)
+                coroutineScope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Deleted ${item.title}",
+                        actionLabel = "Undo",
+                        duration = SnackbarDuration.Short,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.restoreItem(item)
+                    }
+                }
             },
             onConfirm = { title, price, currencyCode, note, url, priority, mood, categoryId ->
                 viewModel.updateItem(item, title, price, currencyCode, note, url, priority, mood, categoryId) {
@@ -230,7 +307,7 @@ fun WishlistScreen(
         )
     }
 
-    itemToMoveToExpense?.let { item ->
+    makeExpenseQueue.firstOrNull()?.let { item ->
         AddExpenseSheet(
             categories = categories,
             defaultCurrency = defaultCurrency,
@@ -242,15 +319,69 @@ fun WishlistScreen(
                 title = item.title,
                 notes = item.note,
                 mood = moodOrNull(item.mood),
+                priority = wishlistPriorityOrDefault(item.priority),
+                url = item.url,
             ),
-            onDismiss = { itemToMoveToExpense = null },
-            onConfirm = { amount, currencyCode, categoryId, title, notes, date, mood ->
-                viewModel.moveToExpense(item, amount, currencyCode, categoryId, title, notes, date, mood) {
-                    itemToMoveToExpense = null
+            onDismiss = {
+                // Cancels the whole remaining queue, not just this item.
+                val remaining = makeExpenseQueue.size
+                makeExpenseQueue = emptyList()
+                if (remaining > 1) {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar("Cancelled — ${remaining - 1} items left in the wishlist")
+                    }
+                }
+            },
+            onConfirm = { amount, currencyCode, categoryId, title, notes, date, mood, priority, url ->
+                viewModel.moveToExpense(item, amount, currencyCode, categoryId, title, notes, date, mood, priority, url) {
+                    val next = makeExpenseQueue.drop(1)
+                    makeExpenseQueue = next
+                    if (next.isEmpty()) {
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar("Added to expenses")
+                        }
+                    }
                 }
             },
         )
     }
+
+    if (showBulkDeleteConfirm) {
+        val toDelete = allItems.filter { it.id in selectedIds }
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("Delete ${toDelete.size} items from wishlist?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.deleteItems(toDelete)
+                    selectedIds = emptySet()
+                    showBulkDeleteConfirm = false
+                    coroutineScope.launch {
+                        val result = snackbarHostState.showSnackbar(
+                            message = "Deleted ${toDelete.size} items",
+                            actionLabel = "Undo",
+                            duration = SnackbarDuration.Short,
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.restoreItems(toDelete)
+                        }
+                    }
+                }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBulkDeleteConfirm = false }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+private fun wishlistSortLabel(field: SortField): String = when (field) {
+    SortField.DATE -> "Date added"
+    SortField.CATEGORY -> "Category"
+    SortField.AMOUNT -> "Amount"
+    SortField.NAME -> "Item name"
+    SortField.MOOD -> "Mood"
 }
 
 @Composable
@@ -258,14 +389,11 @@ private fun WishlistRow(
     item: WishlistItem,
     defaultCurrency: String,
     category: Category?,
-    onClick: () -> Unit,
-    onDelete: () -> Unit,
 ) {
     Card(
-        onClick = onClick,
         colors = AppCard.colors,
         elevation = AppCard.elevation,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -294,7 +422,13 @@ private fun WishlistRow(
             }
             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(item.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                    Text(
+                        item.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     moodOrNull(item.mood)?.let { mood ->
                         Text(mood.emoji, modifier = Modifier.padding(start = 6.dp))
                     }
@@ -317,9 +451,6 @@ private fun WishlistRow(
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 8.dp),
                 )
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete item", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
