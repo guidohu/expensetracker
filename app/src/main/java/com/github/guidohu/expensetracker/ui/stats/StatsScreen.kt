@@ -54,9 +54,6 @@ import com.github.guidohu.expensetracker.ui.components.DonutSlice
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -122,11 +119,6 @@ fun StatsScreen(container: AppContainer) {
     }
 }
 
-private val rangeFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-
-private fun rangeLabel(start: LocalDate, end: LocalDate): String =
-    if (start == end) start.format(rangeFormatter) else "${start.format(rangeFormatter)} – ${end.format(rangeFormatter)}"
-
 @Composable
 private fun HistoricStatsSection(
     historic: HistoricStats,
@@ -138,11 +130,6 @@ private fun HistoricStatsSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         HorizontalDivider()
-        Text(
-            rangeLabel(historic.rangeStart, historic.rangeEnd),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
 
         // Bleed the chips to the screen edges so they scroll under the page margin instead of clipping at it.
         LazyRow(
