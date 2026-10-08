@@ -13,25 +13,42 @@
 </head>
 <body>
   <h1>Privacy Policy — Expense Tracker</h1>
-  <p class="updated">Last updated: October 2026</p>
+  <p class="updated">Last updated: October 8, 2026</p>
 
-  <p><strong>Expense Tracker does not collect, store, or transmit any personal data.</strong></p>
+  <p><strong>Expense Tracker does not collect personal data, and nothing you enter ever leaves your device.</strong></p>
 
   <ul>
-    <li>All categories and expenses you enter are stored locally on your device only, in a local database.</li>
+    <li>All categories, expenses and wishlist items you enter are stored locally on your device only, in a local database.</li>
     <li>No analytics, advertising, or third-party tracking SDKs are included.</li>
     <li>No account, sign-in, or personal information is required or collected.</li>
     <li>Uninstalling the app permanently deletes all of its data from your device.</li>
   </ul>
 
-  <h2 style="font-size: 1.1rem;">The one network request this app makes</h2>
+  <h2 style="font-size: 1.1rem;">The network requests this app makes</h2>
   <p>
-    If you log an expense in a currency other than your default one, the app looks up that day's
-    exchange rate from <a href="https://www.frankfurter.app">frankfurter.app</a>, a free public
-    service backed by European Central Bank reference rates. That request contains only the two
-    currency codes and a date (e.g. "USD to EUR on 2026-03-01") — never your amount, category,
-    notes, or any other identifying information. If you only ever use one currency, the app makes
-    no network requests at all.
+    The app can go online in two situations, both triggered by something you do. It never contacts
+    any server run by the developer, and it sends nothing else.
+  </p>
+  <ul>
+    <li>
+      <strong>Exchange rates.</strong> If you log an expense in a currency other than your default
+      one, the app looks up that day's exchange rate from
+      <a href="https://www.frankfurter.app">frankfurter.app</a>, a free public service backed by
+      European Central Bank reference rates. That request contains only the two currency codes and a
+      date (e.g. "USD to EUR on 2026-03-01") — never your amount, category, notes, or any other
+      identifying information.
+    </li>
+    <li>
+      <strong>Wishlist link previews.</strong> If you add a web link to your wishlist (for example by
+      sharing a product page from your browser), the app fetches that page, and its preview image,
+      directly from the website the link points to, to show a title and picture. That website sees
+      the request like any other page visit, including your device's IP address. The app sends it no
+      information about you or your expenses.
+    </li>
+  </ul>
+  <p>
+    If you only use one currency and never add links to your wishlist, the app makes no network
+    requests at all.
   </p>
 
   <p>This app is open source. You can review exactly what it does at
