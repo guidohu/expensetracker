@@ -26,6 +26,19 @@ class SettingsViewModel(
     val dailyReminderHour: StateFlow<Int> = userPreferences.dailyReminderHour
     val dailyReminderMinute: StateFlow<Int> = userPreferences.dailyReminderMinute
     val budgetCongratsEnabled: StateFlow<Boolean> = userPreferences.budgetCongratsEnabled
+    val isPro: StateFlow<Boolean> = userPreferences.isPro
+    val isProPurchased: StateFlow<Boolean> = userPreferences.isProPurchased
+    val isLegacyPro: Boolean = userPreferences.isLegacyPro
+    val debugProOverride: StateFlow<Boolean?> = userPreferences.debugProOverride
+
+    /** Debug builds only: cycles real state → forced Pro → forced free → real state. */
+    fun cycleDebugProOverride() = userPreferences.setDebugProOverride(
+        when (debugProOverride.value) {
+            null -> true
+            true -> false
+            false -> null
+        }
+    )
 
     private val _backupBusy = MutableStateFlow(false)
     /** True while a backup or restore is running, so the UI can block starting another. */

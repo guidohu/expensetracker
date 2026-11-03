@@ -40,9 +40,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.Category
+import com.github.guidohu.expensetracker.data.FreeTier
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.EmptyState
+import com.github.guidohu.expensetracker.ui.pro.FreeLimitBanner
+import com.github.guidohu.expensetracker.ui.pro.ProUpgradeDialog
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,13 +56,20 @@ fun CategoriesScreen(container: AppContainer) {
     )
     val categories by viewModel.categories.collectAsState()
     val deleteBlocked by viewModel.deleteBlocked.collectAsState()
+    val isPro by container.userPreferences.isPro.collectAsState()
     var showAddDialog by rememberSaveable { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<Category?>(null) }
+    var paywallReason by rememberSaveable { mutableStateOf<String?>(null) }
+    val atFreeLimit = !isPro && categories.size >= FreeTier.CATEGORY_LIMIT
+
+    fun requestAdd() {
+        if (atFreeLimit) paywallReason = CATEGORY_LIMIT_REASON else showAddDialog = true
+    }
 
     Scaffold(
         topBar = { TopAppBar(title = { Text("Categories") }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
+            FloatingActionButton(onClick = ::requestAdd) {
                 Icon(Icons.Filled.Add, contentDescription = "Add category")
             }
         }
@@ -70,7 +80,7 @@ fun CategoriesScreen(container: AppContainer) {
                 title = "No categories yet",
                 body = "Create categories like Food or Transport to organize your spending.",
                 actionLabel = "Add a category",
-                onAction = { showAddDialog = true },
+                onAction = ::requestAdd,
                 modifier = Modifier.padding(padding),
             )
         } else {
@@ -85,6 +95,17 @@ fun CategoriesScreen(container: AppContainer) {
                         onDelete = { viewModel.requestDelete(category) },
                     )
                 }
+                if (!isPro) {
+                    item(key = "free_limit") {
+                        FreeLimitBanner(
+                            used = categories.size,
+                            limit = FreeTier.CATEGORY_LIMIT,
+                            noun = "categories",
+                            onClick = { paywallReason = CATEGORY_LIMIT_REASON },
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -94,9 +115,12 @@ fun CategoriesScreen(container: AppContainer) {
             existing = null,
             onDismiss = { showAddDialog = false },
             onConfirm = { name, color ->
-                viewModel.addCategory(name, color)
+                // Re-checked here: on a cold start the list may still have been loading when the dialog opened.
+                if (atFreeLimit) paywallReason = CATEGORY_LIMIT_REASON else viewModel.addCategory(name, color)
                 showAddDialog = false
             },
+            customColorUnlocked = isPro,
+            onCustomColorLocked = { paywallReason = CUSTOM_COLOR_REASON },
         )
     }
 
@@ -108,7 +132,13 @@ fun CategoriesScreen(container: AppContainer) {
                 viewModel.updateCategory(category, name, color)
                 editingCategory = null
             },
+            customColorUnlocked = isPro,
+            onCustomColorLocked = { paywallReason = CUSTOM_COLOR_REASON },
         )
+    }
+
+    paywallReason?.let { reason ->
+        ProUpgradeDialog(container, reason = reason, onDismiss = { paywallReason = null })
     }
 
     deleteBlocked?.let { category ->
@@ -168,3 +198,6 @@ private fun CategoryRow(category: Category, onClick: () -> Unit, onDelete: () ->
         }
     }
 }
+
+internal val CATEGORY_LIMIT_REASON = "The free version includes up to ${FreeTier.CATEGORY_LIMIT} categories."
+internal const val CUSTOM_COLOR_REASON = "Picking any color from the full spectrum is a Pro feature."

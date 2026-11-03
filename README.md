@@ -4,10 +4,21 @@ A deliberately simple Android expense tracker: track categories, log expenses, s
 
 ## Features
 
-- **Categories** — create custom categories with a name and color (six sensible defaults are seeded on first run).
+- **Categories** — create custom categories with a name and color (three defaults are seeded on first run).
 - **Expenses** — log an amount, category, optional note, and date from a bottom sheet; swipe through the list, delete with a tap.
 - **Backup & restore** — Settings can export everything (expenses, categories, wishlist, settings) to a single `.zip` of CSV files and restore from one, replacing the current data.
 - **Stats** — this month vs. all-time totals, a donut chart of spending by category, and a 6-month bar chart trend.
+
+## Free vs. Pro
+
+The app is free, with a one-time **Pro pack** in-app purchase (Play product ID `pro_pack`, see
+`data/ProPack.kt`). Free users get up to 3 categories, up to 20 wishlist items and the preset
+color palette. Pro removes those limits and unlocks the full color picker. Anyone who had completed
+onboarding before the Pro pack shipped (versionCode 23) is grandfathered into Pro automatically.
+
+Purchases go through Google Play Billing (`data/ProPurchases.kt`) and are verified on the device only;
+the result is cached in `UserPreferences.isPro`, which every gated feature checks. Debug builds have
+a "Debug: Pro state" row at the bottom of Settings that forces Pro on or off for testing.
 
 ## Stack
 

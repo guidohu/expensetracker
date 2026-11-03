@@ -53,6 +53,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.Category
+import com.github.guidohu.expensetracker.data.FreeTier
 import com.github.guidohu.expensetracker.data.SortField
 import com.github.guidohu.expensetracker.data.WishlistItem
 import com.github.guidohu.expensetracker.data.moodOrNull
@@ -64,6 +65,8 @@ import com.github.guidohu.expensetracker.ui.components.SelectionTopAppBar
 import com.github.guidohu.expensetracker.ui.components.SwipeActionRow
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheet
 import com.github.guidohu.expensetracker.ui.expenses.ExpensePrefill
+import com.github.guidohu.expensetracker.ui.pro.FreeLimitBanner
+import com.github.guidohu.expensetracker.ui.pro.ProUpgradeDialog
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 import kotlinx.coroutines.launch
@@ -108,6 +111,20 @@ fun WishlistScreen(
     var makeExpenseQueue by remember { mutableStateOf<List<WishlistItem>>(emptyList()) }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+    val isPro by container.userPreferences.isPro.collectAsState()
+    var paywallReason by rememberSaveable { mutableStateOf<String?>(null) }
+    val atFreeLimit = !isPro && allItems.size >= FreeTier.WISHLIST_ITEM_LIMIT
+
+    fun openAddSheet(initialUrl: String?) {
+        if (atFreeLimit) {
+            paywallReason = WISHLIST_LIMIT_REASON
+            return
+        }
+        addSheetInitialUrl = initialUrl
+        viewModel.seedExistingPreview(null)
+        if (initialUrl != null) viewModel.onUrlChanged(initialUrl)
+        showAddSheet = true
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { message ->
@@ -117,10 +134,7 @@ fun WishlistScreen(
 
     LaunchedEffect(prefillUrl) {
         if (prefillUrl != null) {
-            addSheetInitialUrl = prefillUrl
-            viewModel.seedExistingPreview(null)
-            viewModel.onUrlChanged(prefillUrl)
-            showAddSheet = true
+            openAddSheet(prefillUrl)
             onPrefillConsumed()
         }
     }
@@ -168,11 +182,7 @@ fun WishlistScreen(
         },
         floatingActionButton = {
             if (selectedIds.isEmpty()) {
-                FloatingActionButton(onClick = {
-                    addSheetInitialUrl = null
-                    viewModel.seedExistingPreview(null)
-                    showAddSheet = true
-                }) {
+                FloatingActionButton(onClick = { openAddSheet(null) }) {
                     Icon(Icons.Filled.Add, contentDescription = "Add wishlist item")
                 }
             }
@@ -184,7 +194,7 @@ fun WishlistScreen(
                 title = "Your wishlist is empty",
                 body = "Tap the + button to add something you want to buy.",
                 actionLabel = "Add item",
-                onAction = { addSheetInitialUrl = null; viewModel.seedExistingPreview(null); showAddSheet = true },
+                onAction = { openAddSheet(null) },
                 modifier = Modifier.padding(padding),
             )
             items.isEmpty() -> EmptyState(
@@ -250,6 +260,17 @@ fun WishlistScreen(
                         }
                     }
                 }
+                if (!isPro) {
+                    item(key = "free_limit") {
+                        FreeLimitBanner(
+                            used = allItems.size,
+                            limit = FreeTier.WISHLIST_ITEM_LIMIT,
+                            noun = "wishlist items",
+                            onClick = { paywallReason = WISHLIST_LIMIT_REASON },
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -264,8 +285,14 @@ fun WishlistScreen(
             initialUrl = addSheetInitialUrl,
             onDismiss = { showAddSheet = false },
             onConfirm = { title, price, currencyCode, note, url, priority, mood, categoryId ->
-                viewModel.addItem(title, price, currencyCode, note, url, priority, mood, categoryId) {
-                    showAddSheet = false
+                // Re-checked at save time: a link shared into a cold-started app can open the sheet
+                // before the item count has loaded. The sheet stays open so nothing typed is lost.
+                if (atFreeLimit) {
+                    paywallReason = WISHLIST_LIMIT_REASON
+                } else {
+                    viewModel.addItem(title, price, currencyCode, note, url, priority, mood, categoryId) {
+                        showAddSheet = false
+                    }
                 }
             },
         )
@@ -346,6 +373,10 @@ fun WishlistScreen(
         )
     }
 
+    paywallReason?.let { reason ->
+        ProUpgradeDialog(container, reason = reason, onDismiss = { paywallReason = null })
+    }
+
     if (showBulkDeleteConfirm) {
         val toDelete = allItems.filter { it.id in selectedIds }
         AlertDialog(
@@ -375,6 +406,8 @@ fun WishlistScreen(
         )
     }
 }
+
+private val WISHLIST_LIMIT_REASON = "The free version includes up to ${FreeTier.WISHLIST_ITEM_LIMIT} wishlist items."
 
 private fun wishlistSortLabel(field: SortField): String = when (field) {
     SortField.DATE -> "Date added"

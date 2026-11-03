@@ -13,13 +13,15 @@
 </head>
 <body>
   <h1>Privacy Policy — Expense Tracker</h1>
-  <p class="updated">Last updated: October 8, 2026</p>
+  <p class="updated">Last updated: November 3, 2026</p>
 
   <p><strong>Expense Tracker does not collect personal data, and nothing you enter ever leaves your device.</strong></p>
 
   <ul>
     <li>All categories, expenses and wishlist items you enter are stored locally on your device only, in a local database.</li>
-    <li>No analytics, advertising, or third-party tracking SDKs are included.</li>
+    <li>No analytics, advertising, or third-party tracking SDKs are included. The only third-party
+      component that talks to a server is Google Play Billing, used for the optional Pro purchase
+      described below.</li>
     <li>No account, sign-in, or personal information is required or collected.</li>
     <li>Uninstalling the app permanently deletes all of its data from your device.</li>
   </ul>
@@ -48,8 +50,37 @@
   </ul>
   <p>
     If you only use one currency and never add links to your wishlist, the app makes no network
-    requests at all.
+    requests of its own. The only other connection is Google Play checking your Pro purchase,
+    described next.
   </p>
+  <h2 style="font-size: 1.1rem;">In-app purchase (Pro pack)</h2>
+  <p>
+    Expense Tracker is free, with an optional one-time "Pro pack" purchase that unlocks extra
+    features. Purchases are handled entirely by Google Play:
+  </p>
+  <ul>
+    <li>
+      Payment is processed by Google under the
+      <a href="https://policies.google.com/privacy">Google Privacy Policy</a> and the Google Play
+      Terms of Service. The app never sees or handles your payment details.
+    </li>
+    <li>
+      To know whether Pro is unlocked, the app asks the Google Play app on your device whether your
+      Google account owns the Pro pack, each time the app starts. To do this, the Google Play Billing
+      component built into the app talks to Google Play and Google's servers, and may send Google
+      technical information about the purchase process. None of your expenses, categories, wishlist
+      items or settings are included.
+    </li>
+    <li>
+      The app stores just one thing about your purchase locally: whether Pro is unlocked. It is not
+      included in backups you export.
+    </li>
+    <li>
+      As with any Google Play sale, the developer gets the standard order records Google provides to
+      all developers (such as order number, date, price and country) for accounting and refunds.
+      The developer does not get your expense data or any other content from the app.
+    </li>
+  </ul>
 
   <p>This app is open source. You can review exactly what it does at
     <a href="https://github.com/guidohu/expensetracker">github.com/guidohu/expensetracker</a>.</p>

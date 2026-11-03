@@ -54,11 +54,13 @@ import com.github.guidohu.expensetracker.data.SortField
 import com.github.guidohu.expensetracker.data.moodOrNull
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
+import com.github.guidohu.expensetracker.ui.categories.CUSTOM_COLOR_REASON
 import com.github.guidohu.expensetracker.ui.categories.CategoryDialog
 import com.github.guidohu.expensetracker.ui.components.EmptyState
 import com.github.guidohu.expensetracker.ui.components.SearchableTopAppBar
 import com.github.guidohu.expensetracker.ui.components.SelectionTopAppBar
 import com.github.guidohu.expensetracker.ui.components.SwipeActionRow
+import com.github.guidohu.expensetracker.ui.pro.ProUpgradeDialog
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 import com.github.guidohu.expensetracker.util.formatEpochDayRelative
@@ -88,6 +90,8 @@ fun ExpensesScreen(
     var isSearching by rememberSaveable { mutableStateOf(false) }
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
     var showAddCategoryDialog by rememberSaveable { mutableStateOf(false) }
+    val isPro by container.userPreferences.isPro.collectAsState()
+    var paywallReason by rememberSaveable { mutableStateOf<String?>(null) }
     var editingExpense by remember { mutableStateOf<ExpenseWithCategory?>(null) }
     var selectedIds by remember { mutableStateOf(emptySet<Long>()) }
     var revealedId by remember { mutableStateOf<Long?>(null) }
@@ -286,7 +290,14 @@ fun ExpensesScreen(
                 coroutineScope.launch { container.repository.addCategory(name, color) }
                 showAddCategoryDialog = false
             },
+            // Only offered with zero categories, so the free category limit can't apply — just the color gate.
+            customColorUnlocked = isPro,
+            onCustomColorLocked = { paywallReason = CUSTOM_COLOR_REASON },
         )
+    }
+
+    paywallReason?.let { reason ->
+        ProUpgradeDialog(container, reason = reason, onDismiss = { paywallReason = null })
     }
 
     if (showBulkDeleteConfirm) {

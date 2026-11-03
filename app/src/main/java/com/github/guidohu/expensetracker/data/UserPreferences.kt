@@ -1,6 +1,7 @@
 package com.github.guidohu.expensetracker.data
 
 import android.content.Context
+import com.github.guidohu.expensetracker.BuildConfig
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.Locale
@@ -12,6 +13,15 @@ import java.util.Locale
  */
 class UserPreferences(context: Context) : BackupSettings {
     private val prefs = context.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    init {
+        // Grandfathering, decided once on the first launch of the first version with a Pro pack:
+        // anyone already past onboarding installed before Pro existed and had every feature, so
+        // they keep them. A fresh install gets here before onboarding, so it isn't grandfathered.
+        if (!prefs.contains(KEY_LEGACY_PRO)) {
+            prefs.edit().putBoolean(KEY_LEGACY_PRO, prefs.getBoolean(KEY_ONBOARDED, false)).apply()
+        }
+    }
 
     private val defaultCurrencyFallback: String =
         runCatching { java.util.Currency.getInstance(Locale.getDefault()).currencyCode }.getOrDefault("USD")
@@ -59,6 +69,45 @@ class UserPreferences(context: Context) : BackupSettings {
     var lastStreakMilestoneNotified: Int
         get() = prefs.getInt(KEY_STREAK_MILESTONE_NOTIFIED, 0)
         set(value) { prefs.edit().putInt(KEY_STREAK_MILESTONE_NOTIFIED, value).apply() }
+
+    // --- Pro entitlement. Deliberately left out of exportBackupSettings: a backup is a user-editable
+    // zip of CSVs, so carrying these in it would let anyone unlock Pro by editing a file.
+
+    /** True if this user was grandfathered into Pro for having installed before the Pro pack existed. */
+    val isLegacyPro: Boolean = prefs.getBoolean(KEY_LEGACY_PRO, false)
+
+    private val _isProPurchased = MutableStateFlow(prefs.getBoolean(KEY_PRO_PURCHASED, false))
+    /** Whether Google Play last confirmed a Pro pack purchase — cached so Pro keeps working offline. */
+    val isProPurchased: StateFlow<Boolean> = _isProPurchased
+
+    private val _debugProOverride = MutableStateFlow(
+        if (BuildConfig.DEBUG && prefs.contains(KEY_DEBUG_PRO_OVERRIDE)) prefs.getBoolean(KEY_DEBUG_PRO_OVERRIDE, false) else null
+    )
+    /** Debug builds only: forces Pro on (true) or off (false) regardless of purchase; null means "real state". */
+    val debugProOverride: StateFlow<Boolean?> = _debugProOverride
+
+    private val _isPro = MutableStateFlow(computeIsPro())
+    /** The one flag every Pro-gated feature checks. */
+    val isPro: StateFlow<Boolean> = _isPro
+
+    private fun computeIsPro(): Boolean =
+        _debugProOverride.value ?: (_isProPurchased.value || isLegacyPro)
+
+    fun setProPurchased(purchased: Boolean) {
+        if (purchased == _isProPurchased.value) return
+        prefs.edit().putBoolean(KEY_PRO_PURCHASED, purchased).apply()
+        _isProPurchased.value = purchased
+        _isPro.value = computeIsPro()
+    }
+
+    fun setDebugProOverride(value: Boolean?) {
+        if (!BuildConfig.DEBUG) return
+        prefs.edit().apply {
+            if (value == null) remove(KEY_DEBUG_PRO_OVERRIDE) else putBoolean(KEY_DEBUG_PRO_OVERRIDE, value)
+        }.apply()
+        _debugProOverride.value = value
+        _isPro.value = computeIsPro()
+    }
 
     fun setDailyReminderEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_REMINDER_ENABLED, enabled).apply()
@@ -126,5 +175,8 @@ class UserPreferences(context: Context) : BackupSettings {
         private const val KEY_LAST_BUDGET_CONGRATS_MONTH = "last_budget_congrats_month"
         private const val KEY_STREAK_ANCHOR_DATE = "streak_anchor_date"
         private const val KEY_STREAK_MILESTONE_NOTIFIED = "streak_milestone_notified"
+        private const val KEY_LEGACY_PRO = "legacy_pro"
+        private const val KEY_PRO_PURCHASED = "pro_purchased"
+        private const val KEY_DEBUG_PRO_OVERRIDE = "debug_pro_override"
     }
 }

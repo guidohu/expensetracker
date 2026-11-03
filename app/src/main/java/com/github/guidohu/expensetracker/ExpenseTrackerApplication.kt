@@ -7,6 +7,7 @@ import com.github.guidohu.expensetracker.data.AppDatabase
 import com.github.guidohu.expensetracker.data.BackupManager
 import com.github.guidohu.expensetracker.data.ExchangeRateService
 import com.github.guidohu.expensetracker.data.ExpenseRepository
+import com.github.guidohu.expensetracker.data.PlayBillingProPurchases
 import com.github.guidohu.expensetracker.data.UrlPreviewService
 import com.github.guidohu.expensetracker.data.UserPreferences
 import com.github.guidohu.expensetracker.data.WishlistRepository
@@ -18,9 +19,12 @@ import kotlinx.coroutines.SupervisorJob
 class ExpenseTrackerApplication : Application() {
     private val applicationScope = CoroutineScope(SupervisorJob())
 
+    private lateinit var proPurchases: PlayBillingProPurchases
+
     val container: AppContainer by lazy {
         val db = AppDatabase.getInstance(this, applicationScope)
         val userPreferences = UserPreferences(this)
+        proPurchases = PlayBillingProPurchases(this, userPreferences, applicationScope)
         AppContainer(
             repository = ExpenseRepository(db.categoryDao(), db.expenseDao()),
             wishlistRepository = WishlistRepository(db.wishlistDao()),
@@ -31,6 +35,7 @@ class ExpenseTrackerApplication : Application() {
                 db.categoryDao(), db.expenseDao(), db.wishlistDao(), userPreferences,
                 inTransaction = { block -> db.withTransaction { block() } },
             ),
+            proPurchases = proPurchases,
         )
     }
 
@@ -40,5 +45,8 @@ class ExpenseTrackerApplication : Application() {
         // Alarms don't survive reboot, app update, or a backup restore onto a new phone — the
         // prefs that drive them do, so re-arm from current prefs every time the app starts.
         ReminderScheduler.rescheduleAllFromPrefs(this, container.userPreferences)
+        // Syncs the Pro entitlement with Google Play: restores it on a new device, revokes it after a refund.
+        proPurchases.start()
     }
+
 }

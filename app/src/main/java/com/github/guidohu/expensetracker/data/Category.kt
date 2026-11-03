@@ -27,12 +27,10 @@ val CategoryColorPalette: List<Int> = listOf(
     0xFF26C6DA.toInt(), // cyan
 )
 
+/** Seeded on a fresh install — exactly [FreeTier.CATEGORY_LIMIT] of them, so a free user starts at the limit rather than over it. */
 val DefaultCategorySeed: List<Category> = listOf(
     Category(name = "Food", color = 0xFFFF7043.toInt()),
-    Category(name = "Transport", color = 0xFF42A5F5.toInt()),
     Category(name = "Shopping", color = 0xFFAB47BC.toInt()),
-    Category(name = "Bills", color = 0xFF5C6BC0.toInt()),
-    Category(name = "Entertainment", color = 0xFFEC407A.toInt()),
     Category(name = "Other", color = 0xFF78909C.toInt()),
 )
 

@@ -49,6 +49,7 @@ sealed class Destination(val route: String, val label: String) {
     data object Settings : Destination("settings", "Settings")
 }
 
+
 private val bottomNavItems =
     listOf(Destination.Expenses, Destination.Wishlist, Destination.Categories, Destination.Stats, Destination.Settings)
 
@@ -66,6 +67,12 @@ class MainActivity : ComponentActivity() {
                 ExpenseTrackerApp(container, sharedWishlistUrl, openAddExpense)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // A pending purchase (e.g. paid in cash) can complete while the app is in the background.
+        (application as ExpenseTrackerApplication).container.proPurchases.refresh()
     }
 
     override fun onNewIntent(intent: Intent) {

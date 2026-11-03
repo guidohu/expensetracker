@@ -20,11 +20,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,10 +58,12 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.github.guidohu.expensetracker.BuildConfig
 import com.github.guidohu.expensetracker.data.AppContainer
 import com.github.guidohu.expensetracker.data.currencyFor
 import com.github.guidohu.expensetracker.ui.SimpleViewModelFactory
 import com.github.guidohu.expensetracker.ui.components.CurrencyPickerDialog
+import com.github.guidohu.expensetracker.ui.pro.ProUpgradeDialog
 import com.github.guidohu.expensetracker.ui.theme.AppCard
 import com.github.guidohu.expensetracker.util.formatCurrency
 
@@ -78,6 +82,11 @@ fun SettingsScreen(container: AppContainer) {
     val budgetCongratsEnabled by viewModel.budgetCongratsEnabled.collectAsState()
     val backupBusy by viewModel.backupBusy.collectAsState()
     val backupMessage by viewModel.backupMessage.collectAsState()
+    val isPro by viewModel.isPro.collectAsState()
+    val isProPurchased by viewModel.isProPurchased.collectAsState()
+    val debugProOverride by viewModel.debugProOverride.collectAsState()
+    val proPrice by container.proPurchases.product.collectAsState()
+    var showProDialog by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     // The backup file the user picked, held while they confirm it will replace their current data.
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
@@ -128,10 +137,22 @@ fun SettingsScreen(container: AppContainer) {
             modifier = Modifier.fillMaxWidth().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             SettingsRow(
+                icon = Icons.Filled.WorkspacePremium,
+                title = if (isPro) "Pro unlocked" else "Unlock Pro" + proPrice?.let { " — ${it.formattedPrice}" }.orEmpty(),
+                value = when {
+                    !isPro -> "Unlimited categories and wishlist items, plus custom colors. One-time purchase."
+                    isProPurchased -> "Thank you for supporting Expense Tracker!"
+                    viewModel.isLegacyPro -> "Free for early users — thank you for being here from the start!"
+                    else -> "All Pro features are available."
+                },
+                onClick = { if (!isPro) showProDialog = true },
+            )
+            SettingsRow(
                 icon = Icons.Filled.AttachMoney,
                 title = "Default currency",
                 value = "${defaultCurrency} — ${currencyFor(defaultCurrency).displayName}",
                 onClick = { showCurrencyPicker = true },
+                modifier = Modifier.padding(top = 12.dp),
             )
             SettingsRow(
                 icon = Icons.Filled.Savings,
@@ -190,7 +211,24 @@ fun SettingsScreen(container: AppContainer) {
                 enabled = !backupBusy,
                 modifier = Modifier.padding(top = 12.dp),
             )
+            if (BuildConfig.DEBUG) {
+                SettingsRow(
+                    icon = Icons.Filled.BugReport,
+                    title = "Debug: Pro state",
+                    value = when (debugProOverride) {
+                        null -> "Real (purchased: $isProPurchased, early user: ${viewModel.isLegacyPro}) — tap to force Pro"
+                        true -> "Forced Pro — tap to force free"
+                        false -> "Forced free — tap to use real state"
+                    },
+                    onClick = viewModel::cycleDebugProOverride,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
         }
+    }
+
+    if (showProDialog) {
+        ProUpgradeDialog(container, reason = null, onDismiss = { showProDialog = false })
     }
 
     pendingRestoreUri?.let { uri ->

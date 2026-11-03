@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Colorize
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -38,12 +39,18 @@ import com.github.guidohu.expensetracker.data.CategoryColorPalette
 import com.github.guidohu.expensetracker.data.toComposeColor
 import com.github.guidohu.expensetracker.ui.components.SpectrumColorPickerDialog
 
-/** Add/edit dialog for a category — [existing] null means "add new", non-null means "edit". */
+/**
+ * Add/edit dialog for a category — [existing] null means "add new", non-null means "edit".
+ * The full spectrum picker is a Pro feature: without [customColorUnlocked], its swatch shows a lock
+ * and calls [onCustomColorLocked] instead (an existing custom color is still kept as-is).
+ */
 @Composable
 fun CategoryDialog(
     existing: Category?,
     onDismiss: () -> Unit,
     onConfirm: (name: String, color: Int) -> Unit,
+    customColorUnlocked: Boolean = true,
+    onCustomColorLocked: () -> Unit = {},
 ) {
     var name by rememberSaveable { mutableStateOf(existing?.name ?: "") }
     var selectedColor by rememberSaveable { mutableStateOf(existing?.color ?: CategoryColorPalette.first()) }
@@ -99,9 +106,15 @@ fun CategoryDialog(
                                 .size(36.dp)
                                 .clip(CircleShape)
                                 .border(width = 1.dp, color = MaterialTheme.colorScheme.outline, shape = CircleShape)
-                                .clickable { showSpectrumPicker = true }
+                                .clickable {
+                                    if (customColorUnlocked) showSpectrumPicker = true else onCustomColorLocked()
+                                }
                         ) {
-                            Icon(Icons.Filled.Colorize, contentDescription = "Custom color", modifier = Modifier.size(18.dp))
+                            Icon(
+                                if (customColorUnlocked) Icons.Filled.Colorize else Icons.Filled.Lock,
+                                contentDescription = if (customColorUnlocked) "Custom color" else "Custom color (Pro)",
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     }
                 }

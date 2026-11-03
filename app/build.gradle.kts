@@ -23,8 +23,8 @@ android {
         applicationId = "com.github.guidohu.expensetracker"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "2.0"
+        versionCode = 23
+        versionName = "2.1"
     }
 
     signingConfigs {
@@ -59,6 +59,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -84,6 +85,7 @@ dependencies {
 
     implementation(libs.navigation.compose)
     implementation(libs.coil.compose)
+    implementation(libs.billing.ktx)
 
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)

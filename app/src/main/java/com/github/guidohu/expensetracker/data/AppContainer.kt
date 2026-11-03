@@ -8,4 +8,5 @@ data class AppContainer(
     val exchangeRateService: ExchangeRateService,
     val urlPreviewService: UrlPreviewService,
     val backupManager: BackupManager,
+    val proPurchases: ProPurchases = UnavailableProPurchases,
 )
