@@ -42,8 +42,8 @@ import kotlinx.coroutines.launch
 
 /**
  * The Pro pack upsell. [reason] says which limit the user just hit (null when opened from
- * Settings). Switches to a thank-you once Pro unlocks — including a pending payment that clears
- * while the dialog is open.
+ * Settings). For a Pro user it shows what's included and why they have it instead — which is also
+ * what appears the moment a purchase (or a pending payment) completes while it's open.
  */
 @Composable
 fun ProUpgradeDialog(
@@ -66,11 +66,25 @@ fun ProUpgradeDialog(
     }
 
     if (isPro) {
+        val isProPurchased by container.userPreferences.isProPurchased.collectAsState()
         AlertDialog(
             onDismissRequest = onDismiss,
             icon = { Icon(Icons.Filled.WorkspacePremium, contentDescription = null) },
             title = { Text("Pro unlocked") },
-            text = { Text("Thank you for supporting Expense Tracker! Every Pro feature is now available.") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        when {
+                            isProPurchased -> "Thank you for supporting Expense Tracker! These are all yours:"
+                            container.userPreferences.isLegacyPro ->
+                                "You've used Expense Tracker since before Pro existed, so Pro is yours for free. Thank you for being here from the start!"
+                            else -> "Pro is switched on for this debug build."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    ProFeatureList()
+                }
+            },
             confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
         )
         return
@@ -85,17 +99,7 @@ fun ProUpgradeDialog(
                 reason?.let {
                     Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
                 }
-                ProFeatures.forEach { feature ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(feature, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
-                    }
-                }
+                ProFeatureList()
                 Text(
                     "One-time purchase. No subscription, no ads, and your data still never leaves your device.",
                     style = MaterialTheme.typography.bodySmall,
@@ -145,6 +149,21 @@ fun ProUpgradeDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
     )
+}
+
+@Composable
+private fun ProFeatureList() {
+    ProFeatures.forEach { feature ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Filled.Check,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(18.dp),
+            )
+            Text(feature, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 8.dp))
+        }
+    }
 }
 
 /**

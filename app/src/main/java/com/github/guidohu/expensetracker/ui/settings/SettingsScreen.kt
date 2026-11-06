@@ -145,7 +145,8 @@ fun SettingsScreen(container: AppContainer) {
                     viewModel.isLegacyPro -> "Free for early users — thank you for being here from the start!"
                     else -> "All Pro features are available."
                 },
-                onClick = { if (!isPro) showProDialog = true },
+                // For Pro users the same dialog shows what's included and why they have it.
+                onClick = { showProDialog = true },
             )
             SettingsRow(
                 icon = Icons.Filled.AttachMoney,
@@ -224,6 +225,12 @@ fun SettingsScreen(container: AppContainer) {
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
+            Text(
+                "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 24.dp),
+            )
         }
     }
 

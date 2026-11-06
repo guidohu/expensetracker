@@ -54,7 +54,7 @@ class ScreenshotTest {
         expenses: List<ExpenseWithCategory>,
         wishlistItems: List<WishlistItem> = emptyList(),
     ): AppContainer =
-        UserPreferences(paparazzi.context).let { prefs ->
+        UserPreferences(inMemoryPrefsContext(paparazzi.context)).let { prefs ->
             AppContainer(
                 repository = repositoryOf(categories, expenses),
                 wishlistRepository = wishlistRepositoryOf(wishlistItems),

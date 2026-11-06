@@ -23,6 +23,7 @@ import com.github.guidohu.expensetracker.data.UserPreferences
 import com.github.guidohu.expensetracker.ui.categories.CategoriesScreen
 import com.github.guidohu.expensetracker.ui.expenses.AddExpenseSheetContent
 import com.github.guidohu.expensetracker.ui.expenses.ExpensesScreen
+import com.github.guidohu.expensetracker.ui.onboarding.OnboardingScreen
 import com.github.guidohu.expensetracker.ui.settings.SettingsScreen
 import com.github.guidohu.expensetracker.ui.stats.StatsScreen
 import com.github.guidohu.expensetracker.ui.theme.ExpenseTrackerTheme
@@ -49,11 +50,42 @@ class StoreAssetsTest {
             density = Density.XXHIGH,
         ),
         theme = "android:Theme.Material.Light.NoActionBar",
+        // Paparazzi otherwise downscales to 1000px tall; Play wants >= 1080px on the short side.
+        useDeviceResolution = true,
     )
 
-    private fun container(wishlistItems: List<com.github.guidohu.expensetracker.data.WishlistItem> = emptyList()) = UserPreferences(paparazzi.context).let { prefs ->
+    /** [sampleWishlistItems] plus a few more, so the wishlist shot isn't mostly empty space. */
+    private val storeWishlistItems = sampleWishlistItems + listOf(
+        Triple("Concert tickets", 120.0, "WANT") to "EXCITED",
+        Triple("Winter jacket", 180.0, "NEED") to null,
+        Triple("Espresso machine", 399.0, "WANT") to "HAPPY",
+        Triple("Bike tune-up", 60.0, "NEED") to "NEUTRAL",
+    ).mapIndexed { i, (item, mood) ->
+        com.github.guidohu.expensetracker.data.WishlistItem(
+            id = 10L + i, title = item.first, price = item.second, currencyCode = "USD", note = "",
+            url = null, previewTitle = null, previewDescription = null, previewImageUrl = null,
+            createdAt = LocalDate.now().minusDays(12L + i).toEpochDay(), priority = item.third, mood = mood,
+        )
+    }
+
+    /** [sampleExpenses] with a few moods set, so the listing shows off mood tagging. */
+    private val expensesWithMoods = sampleExpenses.map {
+        when (it.id) {
+            1L -> it.copy(mood = "HAPPY")
+            3L -> it.copy(mood = "NEUTRAL")
+            4L -> it.copy(mood = "EXCITED")
+            5L -> it.copy(mood = "REGRET")
+            7L -> it.copy(mood = "HAPPY")
+            else -> it
+        }
+    }
+
+    private fun container(wishlistItems: List<com.github.guidohu.expensetracker.data.WishlistItem> = emptyList()) = UserPreferences(inMemoryPrefsContext(paparazzi.context)).also {
+        // Listing shots show the app as a Pro user, without the free-tier "x of y used" banners.
+        it.setProPurchased(true)
+    }.let { prefs ->
         AppContainer(
-            repository = repositoryOf(sampleCategories, sampleExpenses),
+            repository = repositoryOf(sampleCategories, expensesWithMoods),
             wishlistRepository = wishlistRepositoryOf(wishlistItems),
             userPreferences = prefs,
             exchangeRateService = ExchangeRateService(),
@@ -89,12 +121,19 @@ class StoreAssetsTest {
 
     @Test
     fun shot_stats() = screenshot {
-        StatsScreen(container())
+        val c = container()
+        c.userPreferences.setMonthlyBudget(400.0)
+        StatsScreen(c)
+    }
+
+    @Test
+    fun shot_onboarding() = screenshot {
+        OnboardingScreen(onComplete = {})
     }
 
     @Test
     fun shot_wishlist() = screenshot {
-        WishlistScreen(container(sampleWishlistItems))
+        WishlistScreen(container(storeWishlistItems))
     }
 
     @Test
@@ -106,6 +145,7 @@ class StoreAssetsTest {
     fun shot_settings() = screenshot {
         val c = container()
         c.userPreferences.setMonthlyBudget(500.0)
+        c.userPreferences.setDailyReminderEnabled(true)
         SettingsScreen(c)
     }
 
